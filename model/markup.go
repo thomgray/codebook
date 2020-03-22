@@ -2,6 +2,8 @@ package model
 
 import (
 	"log"
+	"strconv"
+	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -29,11 +31,17 @@ const (
 	AttributeAnchor
 )
 
+const (
+	ContextSearchTerm string = "searchTerm"
+	ContextHval       string = "hval"
+)
+
 type Document struct {
 	Node         *html.Node
 	Heading      *Element
 	Elements     []*Element
 	SubDocuments []*Document
+	Super        *Document
 }
 
 type ContentSegment struct {
@@ -50,20 +58,10 @@ type Element struct {
 	SubElements []*Element
 }
 
-func DocumentFromNode(n *html.Node) *Document {
+func DocumentFromNode(n *html.Node, filename string) *Document {
 	d := Document{}
 	d.Node = n
 	els := make([]*Element, 0)
-
-	// var traverse func(node *html.Node, prefix string)
-	// traverse = func(node *html.Node, prefix string) {
-	// 	fmt.Printf("Node %s %s, %d\n", prefix, node.Data, node.Type)
-
-	// 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-	// 		traverse(c, prefix+"/"+node.Data)
-	// 	}
-	// }
-	// traverse(n, "")
 
 	for node := n.FirstChild; node != nil; node = node.NextSibling {
 		e := parseElement(node, false)
@@ -72,8 +70,69 @@ func DocumentFromNode(n *html.Node) *Document {
 		}
 	}
 
+	if len(els) > 0 && els[0].Tag == "h1" {
+		d.Heading = els[0]
+	} else {
+		// special h0 for fake heading based on file name - this is to ensure you don't get a heading of equal value within the document
+		// fakeHeading :=
+		d.Heading = &Element{
+			Tag:     "h0",
+			Type:    ElementTypeHeading,
+			Context: map[string]string{ContextSearchTerm: filename, ContextHval: "0"},
+			Content: []*ContentSegment{&ContentSegment{
+				Raw:         filename,
+				Attribution: AttributionPlain,
+			}},
+		}
+	}
+
 	d.Elements = els
+	if len(els) > 1 {
+		d.SubDocuments = extractDocuments(els[1:], &d)
+	}
 	return &d
+}
+
+func zipDocumentAgain(els []*Element, i int) (*Document, int) {
+	if len(els) <= i || els[i].Type != ElementTypeHeading {
+		return nil, i + 1
+	}
+	el := els[i]
+	hval, _ := strconv.Atoi(el.Context[ContextHval])
+	var j int = i + 1
+	for ; j < len(els); j++ {
+		el2 := els[j]
+		if el2.Type == ElementTypeHeading {
+			hval2, _ := strconv.Atoi(el2.Context[ContextHval])
+			if hval2 <= hval {
+				//reached the end
+				break
+			}
+		}
+	}
+
+	thisDocEls := els[i:j]
+	doc := Document{
+		Heading:  el,
+		Elements: thisDocEls,
+	}
+	doc.SubDocuments = extractDocuments(thisDocEls[1:], &doc)
+	return &doc, j
+}
+
+func extractDocuments(els []*Element, doc *Document) []*Document {
+	res := make([]*Document, 0)
+	for i := 0; i < len(els); {
+		d, j := zipDocumentAgain(els, i)
+		if d != nil {
+			d.Super = doc
+			res = append(res, d)
+			i = j
+		} else {
+			i++
+		}
+	}
+	return res
 }
 
 func parseElement(n *html.Node, includingText bool) *Element {
@@ -88,8 +147,15 @@ func parseElement(n *html.Node, includingText bool) *Element {
 		case "h1", "h2", "h3", "h4", "h5", "h6":
 			e = &Element{}
 			e.Tag = n.Data
+			hvalue := strings.TrimLeft(n.Data, "h")
 			e.Type = ElementTypeHeading
 			e.Content = parseContent(n)
+			plain := parsePlainContent(n)[0]
+			context := map[string]string{
+				ContextSearchTerm: strings.Trim(plain.Raw, " \n"),
+				ContextHval:       hvalue,
+			}
+			e.Context = context
 		case "pre":
 			children := childElements(n)
 			if len(children) == 1 && children[0].Data == "code" {
@@ -233,4 +299,36 @@ func parseContentSegment(n *html.Node) []ContentSegment {
 	segs := make([]ContentSegment, 0)
 
 	return segs
+}
+
+func (doc *Document) TraverseQuery(q string) *Document {
+	st := doc.Heading.Context[ContextSearchTerm]
+	if strings.HasPrefix(q, st) {
+		remaining := strings.TrimLeft(" ", strings.TrimPrefix(q, st))
+		if remaining != "" {
+			return doc
+		}
+		for _, sub := range doc.SubDocuments {
+			dd := sub.TraverseQuery(remaining)
+			if dd != nil {
+				return dd
+			}
+		}
+	}
+	return nil
+}
+
+func (doc *Document) SubQueries() [][]string {
+	log.Println(doc.Heading.Context)
+	st := doc.Heading.Context[ContextSearchTerm]
+	// "this" heading is one query
+	// then prepend to all sub-doc queries
+	res := [][]string{[]string{st}}
+	for _, d := range doc.SubDocuments {
+		for _, qq := range d.SubQueries() {
+			qq = append([]string{st}, qq...)
+			res = append(res, qq)
+		}
+	}
+	return res
 }

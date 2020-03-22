@@ -52,7 +52,7 @@ func LoadCodeFile(path string) *File {
 	if extn == ".md" {
 		node, err := util.MarkdownToNode(fc)
 		if err == nil {
-			md := DocumentFromNode(node)
+			md := DocumentFromNode(node, filename)
 			file.Document = md
 		}
 	}

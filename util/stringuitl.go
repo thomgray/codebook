@@ -26,3 +26,19 @@ func _flushPathBuffer(buffer []rune, array []string) ([]rune, []string) {
 	}
 	return buffer, array
 }
+
+func StringSliceFilter(in []string, pred func(string) bool) []string {
+	out := []string{}
+	for _, s := range in {
+		if pred(s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func StringSliceFlatten(in []string) []string {
+	return StringSliceFilter(in, func(s string) bool {
+		return s != ""
+	})
+}
