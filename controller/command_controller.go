@@ -35,7 +35,21 @@ var commands = []*command{
 			for i, spath := range sp {
 				as[i] = model.MakeASFromPlainString(spath)
 			}
-			mc.View.OutputView.SetText(&as)
+			mc.View.SetSpecialOutput(&as)
+			return true
+		},
+	},
+	&command{
+		aliases:     []string{"l"},
+		desctiption: "List top level documents",
+		action: func(mc *MainController, args []string) bool {
+			as := make([]model.AttributedString, 0)
+			for _, f := range mc.FileManager.Files {
+				if f.Document != nil {
+					as = append(as, model.MakeASFromPlainString(f.Document.SearchTerm))
+				}
+			}
+			mc.View.SetSpecialOutput(&as)
 			return true
 		},
 	},
@@ -129,7 +143,7 @@ func bootstrapCommands() {
 	// needs to be done this way for circularity reasons :(
 	commands[0].action = func(mc *MainController, args []string) bool {
 		txt := GetHelp()
-		mc.View.OutputView.SetText(txt)
+		mc.View.SetSpecialOutput(txt)
 		return true
 	}
 }

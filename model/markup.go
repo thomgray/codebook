@@ -42,6 +42,7 @@ type Document struct {
 	Elements     []*Element
 	SubDocuments []*Document
 	Super        *Document
+	SearchTerm   string
 }
 
 type ContentSegment struct {
@@ -72,6 +73,7 @@ func DocumentFromNode(n *html.Node, filename string) *Document {
 
 	if len(els) > 0 && els[0].Tag == "h1" {
 		d.Heading = els[0]
+		d.SearchTerm = els[0].Context[ContextSearchTerm]
 	} else {
 		// special h0 for fake heading based on file name - this is to ensure you don't get a heading of equal value within the document
 		// fakeHeading :=
@@ -84,6 +86,7 @@ func DocumentFromNode(n *html.Node, filename string) *Document {
 				Attribution: AttributionPlain,
 			}},
 		}
+		d.SearchTerm = filename
 	}
 
 	d.Elements = els
@@ -113,8 +116,9 @@ func zipDocumentAgain(els []*Element, i int) (*Document, int) {
 
 	thisDocEls := els[i:j]
 	doc := Document{
-		Heading:  el,
-		Elements: thisDocEls,
+		Heading:    el,
+		Elements:   thisDocEls,
+		SearchTerm: el.Context[ContextSearchTerm],
 	}
 	doc.SubDocuments = extractDocuments(thisDocEls[1:], &doc)
 	return &doc, j
@@ -302,7 +306,7 @@ func parseContentSegment(n *html.Node) []ContentSegment {
 }
 
 func (doc *Document) TraverseQuery(q string) *Document {
-	st := doc.Heading.Context[ContextSearchTerm]
+	st := doc.SearchTerm
 	if strings.HasPrefix(q, st) {
 		remaining := strings.TrimLeft(" ", strings.TrimPrefix(q, st))
 		if remaining != "" {
@@ -320,7 +324,7 @@ func (doc *Document) TraverseQuery(q string) *Document {
 
 func (doc *Document) SubQueries() [][]string {
 	log.Println(doc.Heading.Context)
-	st := doc.Heading.Context[ContextSearchTerm]
+	st := doc.SearchTerm
 	// "this" heading is one query
 	// then prepend to all sub-doc queries
 	res := [][]string{[]string{st}}

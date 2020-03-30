@@ -12,7 +12,7 @@ import (
 
 type OutputView struct {
 	*egg.View
-	file *model.File
+	doc  *model.Document
 	text *[]model.AttributedString
 }
 
@@ -27,13 +27,13 @@ func MakeOutputView() *OutputView {
 	return &ov
 }
 
-func (ov *OutputView) SetFile(f *model.File) {
-	ov.file = f
+func (ov *OutputView) SetDocument(f *model.Document) {
+	ov.doc = f
 	ov.text = nil
 }
 
 func (ov *OutputView) SetText(s *[]model.AttributedString) {
-	ov.file = nil
+	ov.doc = nil
 	ov.text = s
 	if ov.text != nil {
 		ov.SetHeight(len(*s))
@@ -41,7 +41,7 @@ func (ov *OutputView) SetText(s *[]model.AttributedString) {
 }
 
 func (ov *OutputView) draw(c egg.Canvas) {
-	if ov.file != nil {
+	if ov.doc != nil {
 		ov.drawFile(c)
 	} else if ov.text != nil {
 		ov.drawText(c)
@@ -59,19 +59,20 @@ func (ov *OutputView) drawText(c egg.Canvas) {
 }
 
 func (ov *OutputView) drawFile(c egg.Canvas) {
-	if ov.file.Document != nil {
-		h := _drawDocument(ov.file.Document, c)
+	if ov.doc != nil {
+		h := _drawDocument(ov.doc, c)
 		if h != ov.GetBounds().Height {
 			ov.SetHeight(h)
 			// need to redraw if changed size after drawing
 			egg.GetApplication().ReDraw()
 		}
-	} else {
-		lines := strings.Split(string(ov.file.Content), "\n")
-		for i, s := range lines {
-			c.DrawString2(s, 0, i)
-		}
 	}
+	// else {
+	// 	lines := strings.Split(string(ov.file.Content), "\n")
+	// 	for i, s := range lines {
+	// 		c.DrawString2(s, 0, i)
+	// 	}
+	// }
 }
 
 func _drawDocument(doc *model.Document, c egg.Canvas) int {
