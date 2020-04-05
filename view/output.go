@@ -187,6 +187,9 @@ func printCode(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 	for _, l := range lines {
 		s := fmt.Sprintf(" %s", l)
 		remainingL := c.Width - runewidth.StringWidth(s)
+		if remainingL <= 0 {
+			remainingL = 0
+		}
 		padding := strings.Repeat("\000", remainingL)
 		c.DrawString(s+padding, x, y, egg.ColorWhite, egg.ColorBlack, egg.AttrNormal)
 		y++
