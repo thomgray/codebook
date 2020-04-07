@@ -156,16 +156,21 @@ func printParagraph(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int)
 		if l.Attribution&model.AttributeAnchor != 0 {
 			href, ok := l.Context["href"]
 			if ok {
-				c.DrawString("[", x, y, egg.ColorMagenta, bg, atts)
-				x++
-				c.DrawString(s, x, y, egg.ColorCyan, bg, atts)
-				x += runewidth.StringWidth(s)
-				c.DrawString(" @ ", x, y, egg.ColorMagenta, bg, atts)
-				x += 2
-				c.DrawString(href, x, y, egg.ColorBlue, bg, atts)
-				x += runewidth.StringWidth(href)
-				c.DrawString("]", x, y, egg.ColorMagenta, bg, atts)
-				x++
+				if href == s {
+					c.DrawString(href, x, y, egg.ColorBlue, bg, atts)
+					x += len(href)
+				} else {
+					c.DrawString("[", x, y, egg.ColorMagenta, bg, atts)
+					x++
+					c.DrawString(s, x, y, egg.ColorCyan, bg, atts)
+					x += runewidth.StringWidth(s)
+					c.DrawString("@", x, y, egg.ColorMagenta, bg, atts)
+					x++
+					c.DrawString(href, x, y, egg.ColorBlue, bg, atts)
+					x += runewidth.StringWidth(href)
+					c.DrawString("]", x, y, egg.ColorMagenta, bg, atts)
+					x++
+				}
 				continue
 			}
 		}

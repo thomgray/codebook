@@ -29,7 +29,7 @@ func (c *Config) Init() *Config {
 }
 
 func loadSeachPaths() []string {
-	bytes, _ := util.ReadFile(ConfigNotePathsPath())
+	bytes, _ := util.ReadFile(NotePathsPath())
 	paths := util.ReadLines(bytes)
 	return paths
 }
@@ -47,13 +47,6 @@ func loadNotePaths(searchPaths []string) []string {
 				log.Printf("File %s\n", fmt.Sprintf("%s/%s", sp, file.Name()))
 			}
 		}
-		// don't walk as it recurs directories.
-		// filepath.Walk(sp, func(path string, info os.FileInfo, err error) error {
-		// 	if !info.IsDir() && filepath.Ext(path) == ".md" {
-		// 		files = append(files, path)
-		// 	}
-		// 	return nil
-		// })
 	}
 	return files
 }
@@ -65,11 +58,12 @@ func ConfigDirectory() string {
 	return fmt.Sprintf("%s/.codebook", GetAppConfig().HomeDir)
 }
 
-// ConfigNotePathsPath ...
-func ConfigNotePathsPath() string {
+// NotePathsPath ...
+func NotePathsPath() string {
 	return fmt.Sprintf("%s/paths", ConfigDirectory())
 }
 
+// AddSearchPath ...
 func (c *Config) AddSearchPath(sp string) {
 	c.SearchPaths = append(c.SearchPaths, sp)
 	c.updateSearchPathConfig()
@@ -77,9 +71,10 @@ func (c *Config) AddSearchPath(sp string) {
 
 func (c *Config) updateSearchPathConfig() {
 	serlaised := []byte(strings.Join(c.SearchPaths, "\n"))
-	ioutil.WriteFile(ConfigNotePathsPath(), serlaised, 0644)
+	ioutil.WriteFile(NotePathsPath(), serlaised, 0644)
 }
 
+// RemoveSearchPath ...
 func (c *Config) RemoveSearchPath(sp string) {
 	for i, p := range c.SearchPaths {
 		if p == sp {
@@ -90,6 +85,7 @@ func (c *Config) RemoveSearchPath(sp string) {
 	c.updateSearchPathConfig()
 }
 
+// ReloadNotes ...
 func (c *Config) ReloadNotes() {
 	c.NotePaths = loadNotePaths(c.SearchPaths)
 }
