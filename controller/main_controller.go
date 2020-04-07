@@ -61,7 +61,6 @@ func (mc *MainController) init() {
 }
 
 func (mc *MainController) reloadFiles() {
-	log.Printf("Note paths = ", mc.Config.NotePaths)
 	mc.FileManager.LoadFiles(mc.Config.NotePaths)
 }
 

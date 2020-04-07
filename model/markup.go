@@ -21,6 +21,7 @@ const (
 	ElementTypeListItem
 	ElementTypeUnorderedList
 	ElementTypeOrderedList
+	ElementTypeHorizontalRule
 )
 
 const (
@@ -204,6 +205,10 @@ func parseElement(n *html.Node, includingText bool) *Element {
 				}
 			}
 			e.SubElements = subE
+		case "hr":
+			e = &Element{}
+			e.Tag = "hr"
+			e.Type = ElementTypeHorizontalRule
 		default:
 			log.Printf("Whaaat? %s\n", n.Data)
 		}
@@ -244,7 +249,6 @@ func parseContent(n *html.Node) []*ContentSegment {
 			case "code":
 				attribution = attribution | AttributionCode
 			case "a":
-				log.Printf(">>>>> atts = %v. raw = '%s'", node.Attr, node.FirstChild.Data)
 				attribution |= AttributeAnchor
 				seg := ContentSegment{
 					Raw:         node.FirstChild.Data,
@@ -273,9 +277,9 @@ func parseContent(n *html.Node) []*ContentSegment {
 	}
 	parser(n, AttributionPlain)
 
-	for _, l := range segments {
-		log.Printf("Segment %v\n", l)
-	}
+	// for _, l := range segments {
+	// 	log.Printf("Segment %v\n", l)
+	// }
 
 	return segments
 }

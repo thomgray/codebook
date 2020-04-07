@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
@@ -98,7 +99,10 @@ func printGeneric(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 		_, y = printQuote(e, c, 0, y)
 	case model.ElementTypeUnorderedList:
 		_, y = printList(e, c, 0, y)
+	case model.ElementTypeHorizontalRule:
+		_, y = printHR(e, c, 0, y)
 	default:
+		log.Printf("Don't know how to output %s", e.Tag)
 		s := fmt.Sprintf("%s - %s", e.Tag, e.Content)
 		c.DrawString2(s, 0, y)
 		y++
@@ -229,6 +233,12 @@ func printList(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 		}
 	}
 	return x, y
+}
+
+func printHR(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+	str := strings.Repeat("─", c.Width)
+	c.DrawString(str, 0, y, egg.ColorRed, c.Background, c.Attribute)
+	return x, y + 1
 }
 
 func printListItem(e *model.Element, c egg.Canvas, x, y int, index int) (nextX, nextY int) {
