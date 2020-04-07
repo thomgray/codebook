@@ -11,15 +11,22 @@ import (
 // var config *config.Config
 
 func main() {
-	file, err := os.OpenFile("info.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.SetOutput(file)
 
+	devMode := os.Getenv("codebookdevmode")
+	if devMode == "true" {
+		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.SetOutput(file)
+		defer file.Close()
+	} else {
+		output, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0644)
+		log.SetOutput(output)
+		defer output.Close()
+	}
 	install()
 	config := config.MakeConfig()
 	controller := controller.InitMainController(config)
-	defer file.Close()
 	defer controller.Start()
 }

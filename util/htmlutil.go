@@ -1,7 +1,6 @@
 package util
 
 import (
-	"log"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -10,7 +9,6 @@ import (
 
 func MarkdownToNode(data []byte) (*html.Node, error) {
 	md := blackfriday.Run(data)
-	log.Print(string(md))
 	node, err := html.Parse(strings.NewReader(string(md)))
 
 	return HTMLBody(node), err

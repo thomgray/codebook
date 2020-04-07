@@ -18,14 +18,14 @@ type Config struct {
 
 // MakeConfig ...
 func MakeConfig() *Config {
-	return Config{}.Init()
+	return (&Config{}).Init()
 }
 
 // Init ...
-func (c Config) Init() *Config {
+func (c *Config) Init() *Config {
 	c.SearchPaths = loadSeachPaths()
 	c.NotePaths = loadNotePaths(c.SearchPaths)
-	return &c
+	return c
 }
 
 func loadSeachPaths() []string {

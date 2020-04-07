@@ -81,6 +81,15 @@ var commands = []*command{
 			return true
 		},
 	},
+	&command{
+		aliases:     []string{"reload"},
+		desctiption: "Reload notes",
+		action: func(mc *MainController, args []string) bool {
+			mc.Config.Init() // to reload config
+			mc.reloadFiles() // to reload files
+			return true
+		},
+	},
 }
 
 func (mc *MainController) handleCommand(str string) {

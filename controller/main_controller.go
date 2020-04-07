@@ -61,6 +61,7 @@ func (mc *MainController) init() {
 }
 
 func (mc *MainController) reloadFiles() {
+	log.Printf("Note paths = ", mc.Config.NotePaths)
 	mc.FileManager.LoadFiles(mc.Config.NotePaths)
 }
 
@@ -171,13 +172,6 @@ func (mc *MainController) handleSearch(str string) {
 		app.ReDraw()
 	}
 }
-
-// func (mc *MainController) setActiveFile(f *model.File) {
-// 	mc.activeFile = f
-// 	mc.View.SetActiveDocument(f)
-// 	mc.InputView.SetTextContentString("")
-// 	mc.InputView.SetCursorX(0)
-// }
 
 func (mc *MainController) SetActiveDocument(d *model.Document) {
 	mc.activeDocument = d
