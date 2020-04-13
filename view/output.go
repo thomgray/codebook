@@ -80,27 +80,27 @@ func _drawDocument(doc *model.Document, c egg.Canvas) int {
 	y := 0
 	x := 0
 	for _, e := range doc.Elements {
-		_, y = printGeneric(e, c, x, y)
+		_, y = printGeneric(e, c, x, y, 0)
 		y++
 	}
 	// _, y = printGeneric(doc.Elements, c, x, y)
 	return y
 }
 
-func printGeneric(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printGeneric(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
 	switch e.Type {
 	case model.ElementTypeHeading:
-		x, y = printHeading(e, c, 0, y)
+		x, y = printHeading(e, c, x, y, tier)
 	case model.ElementTypeString:
-		_, y = printParagraph(e, c, 0, y)
+		_, y = printParagraph(e, c, x, y, tier)
 	case model.ElementTypeCode:
-		_, y = printCode(e, c, 0, y)
+		_, y = printCode(e, c, x, y, tier)
 	case model.ElementTypeQuote:
-		_, y = printQuote(e, c, 0, y)
+		_, y = printQuote(e, c, x, y, tier)
 	case model.ElementTypeUnorderedList:
-		_, y = printList(e, c, 0, y)
+		_, y = printList(e, c, x, y, tier)
 	case model.ElementTypeHorizontalRule:
-		_, y = printHR(e, c, 0, y)
+		_, y = printHR(e, c, x, y, tier)
 	default:
 		log.Printf("Don't know how to output %s", e.Tag)
 		s := fmt.Sprintf("%s - %s", e.Tag, e.Content)
@@ -110,7 +110,7 @@ func printGeneric(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 	return x, y
 }
 
-func printHeading(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printHeading(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
 	headingN := 0
 	switch e.Tag {
 	case "h1":
@@ -140,7 +140,7 @@ func printHeading(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 	return x, y + 1
 }
 
-func printParagraph(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printParagraph(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
 	for _, l := range e.Content {
 		s := fmt.Sprintf("%s", l.Raw)
 		atts := c.Attribute
@@ -185,7 +185,7 @@ func printParagraph(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int)
 	return x, y
 }
 
-func printCode(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printCode(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
 	// code should only have 1 plain content
 	content := e.Content[0]
 	lines := strings.Split(content.Raw, "\n")
@@ -206,7 +206,7 @@ func printCode(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 	return x, y
 }
 
-func printQuote(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printQuote(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
 	// code should only have 1 plain content
 	content := e.Content[0]
 	lines := strings.Split(content.Raw, "\n")
@@ -226,16 +226,21 @@ func printQuote(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
 	return x, y
 }
 
-func printList(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printList(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
+	// e should be a list (ul or ol)
+	log.Println("This should be a list: ", e.Tag)
 	for _, subE := range e.SubElements {
+		// subE should be a li
+		c.DrawString(" • ", x, y, c.Foreground, c.Background, c.Attribute)
 		for _, subSubE := range subE.SubElements {
-			_, y = printGeneric(subSubE, c, x+3, y)
+			// each element is just any thing
+			_, y = printGeneric(subSubE, c, x+3, y, tier+1)
 		}
 	}
 	return x, y
 }
 
-func printHR(e *model.Element, c egg.Canvas, x, y int) (nextX, nextY int) {
+func printHR(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
 	str := strings.Repeat("─", c.Width)
 	c.DrawString(str, 0, y, egg.ColorRed, c.Background, c.Attribute)
 	return x, y + 1

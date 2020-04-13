@@ -1,14 +1,16 @@
 package util
 
 import (
+	"log"
 	"strings"
 
+	"github.com/russross/blackfriday/v2"
 	"golang.org/x/net/html"
-	"gopkg.in/russross/blackfriday.v2"
 )
 
 func MarkdownToNode(data []byte) (*html.Node, error) {
 	md := blackfriday.Run(data)
+	log.Println(string(md))
 	node, err := html.Parse(strings.NewReader(string(md)))
 
 	return HTMLBody(node), err
