@@ -2,9 +2,11 @@ package model
 
 import (
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/thomgray/codebook/htmlu"
 	"golang.org/x/net/html"
 )
 
@@ -39,6 +41,7 @@ const (
 
 type Document struct {
 	Node         *html.Node
+	Content      []*html.Node
 	Heading      *Element
 	Elements     []*Element
 	SubDocuments []*Document
@@ -63,10 +66,12 @@ type Element struct {
 func DocumentFromNode(n *html.Node, filename string) *Document {
 	d := Document{}
 	d.Node = n
+	htmlu.FixWhitespace(d.Node, true)
 	els := make([]*Element, 0)
 
 	for node := n.FirstChild; node != nil; node = node.NextSibling {
 		e := parseElement(node, false)
+		d.Content = append(d.Content, node)
 		if e != nil {
 			els = append(els, e)
 		}
@@ -95,6 +100,30 @@ func DocumentFromNode(n *html.Node, filename string) *Document {
 		d.SubDocuments = extractDocuments(els[1:], &d)
 	}
 	return &d
+}
+
+var hPatt *regexp.Regexp = regexp.MustCompile("h([0-6])")
+
+func zipDocumentsNodes(nodes []*html.Node, hval int) []*Document {
+	var out []*Document = make([]*Document, 0)
+	var nodeBuff []*html.Node = make([]*html.Node, 0)
+	for _, n := range nodes {
+		if n.Type == html.ElementNode {
+			matches := hPatt.FindStringSubmatch(n.Data)
+			if len(matches) > 1 {
+				d := matches[1]
+				dd, e := strconv.Atoi(d)
+				if e == nil {
+					if dd <= hval {
+						// end of this heading, so should
+					}
+				}
+			}
+		}
+		nodeBuff = append(nodeBuff, n)
+	}
+
+	return out
 }
 
 func zipDocumentAgain(els []*Element, i int) (*Document, int) {

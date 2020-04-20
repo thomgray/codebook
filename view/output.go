@@ -1,20 +1,61 @@
 package view
 
 import (
-	"fmt"
-	"log"
+	"strconv"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
+	"golang.org/x/net/html"
 
+	"github.com/thomgray/codebook/htmlu"
 	"github.com/thomgray/codebook/model"
 	"github.com/thomgray/egg"
 )
+
+type lineTracker struct {
+	doubleLineLock bool
+}
+
+func (lt *lineTracker) drew() {
+	lt.doubleLineLock = false
+}
+
+func (lt *lineTracker) broke() {
+	lt.doubleLineLock = true
+}
+
+const listIndent int = 2
 
 type OutputView struct {
 	*egg.View
 	doc  *model.Document
 	text *[]model.AttributedString
+}
+type contextListType uint8
+
+const (
+	contextListUl contextListType = iota
+	contextListOl
+)
+
+// context passed from parent to children
+type renderingContext struct {
+	c                   egg.Canvas
+	fg                  egg.Color
+	bg                  egg.Color
+	atts                egg.Attribute
+	listType            contextListType
+	listItemCardinality int
+	preformatted        bool
+	leftXMargin         int
+	rightXMargin        int
+	lineTracker         *lineTracker
+}
+
+// context passed back from child to parent
+type renderingBackContext struct {
+	x int
+	y int
 }
 
 func MakeOutputView() *OutputView {
@@ -68,184 +109,201 @@ func (ov *OutputView) drawFile(c egg.Canvas) {
 			egg.GetApplication().ReDraw()
 		}
 	}
-	// else {
-	// 	lines := strings.Split(string(ov.file.Content), "\n")
-	// 	for i, s := range lines {
-	// 		c.DrawString2(s, 0, i)
-	// 	}
-	// }
 }
 
 func _drawDocument(doc *model.Document, c egg.Canvas) int {
 	y := 0
 	x := 0
-	for _, e := range doc.Elements {
-		_, y = printGeneric(e, c, x, y, 0)
-		y++
+
+	rc := renderingContext{
+		c:            c,
+		fg:           c.Foreground,
+		bg:           c.Background,
+		atts:         c.Attribute,
+		leftXMargin:  0,
+		rightXMargin: c.Width,
+		lineTracker:  &lineTracker{},
 	}
-	// _, y = printGeneric(doc.Elements, c, x, y)
+
+	_, y = _drawNode(doc.Node, c, x, y, rc)
 	return y
 }
 
-func printGeneric(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	switch e.Type {
-	case model.ElementTypeHeading:
-		x, y = printHeading(e, c, x, y, tier)
-	case model.ElementTypeString:
-		_, y = printParagraph(e, c, x, y, tier)
-	case model.ElementTypeCode:
-		_, y = printCode(e, c, x, y, tier)
-	case model.ElementTypeQuote:
-		_, y = printQuote(e, c, x, y, tier)
-	case model.ElementTypeUnorderedList:
-		_, y = printList(e, c, x, y, tier)
-	case model.ElementTypeHorizontalRule:
-		_, y = printHR(e, c, x, y, tier)
+func _drawNode(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nextX, nextY int) {
+	switch n.Type {
+	case html.ElementNode:
+		switch n.Data {
+		case "h1", "h2", "h3", "h4", "h5", "h6":
+			return _drawHeader(n, c, x, y, rc)
+		case "a":
+			return _drawAnchor(n, c, x, y, rc)
+		default:
+			return _drawElement(n, c, x, y, rc)
+		}
+	case html.TextNode:
+		return _drawText(n, c, x, y, rc)
 	default:
-		log.Printf("Don't know how to output %s", e.Tag)
-		s := fmt.Sprintf("%s - %s", e.Tag, e.Content)
-		c.DrawString2(s, 0, y)
-		y++
+		return x, y
 	}
-	return x, y
 }
 
-func printHeading(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	headingN := 0
-	switch e.Tag {
-	case "h1":
-		headingN = 5
-	case "h2":
-		headingN = 4
-	case "h3":
-		headingN = 3
-	case "h4":
-		headingN = 2
-	case "h5":
-		headingN = 1
-	}
-	prebit := strings.Repeat("│", headingN+1)
+func _drawHeader(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nextX, nextY int) {
+	hval := htmlu.HVal(n)
+	rc.fg = egg.ColorMagenta
+
+	prebit := strings.Repeat("│", hval+1)
 	thisX := x
 	c.DrawString(prebit, thisX, y, egg.ColorBlue, c.Background, c.Attribute)
-	thisX += runewidth.StringWidth(prebit) + 1
-	for _, seg := range e.Content {
-		c.DrawString(seg.Raw, thisX, y, egg.ColorRed, c.Background, egg.AttrBold)
-		thisX += runewidth.StringWidth(seg.Raw)
-	}
-	y++
-	postBit := "└" + strings.Repeat("┴", headingN)
+	x += runewidth.StringWidth(prebit) + 1
+
+	postBit := "└" + strings.Repeat("┴", hval)
 	remainder := c.Width - runewidth.StringWidth(postBit)
 	allPostBitStr := postBit + strings.Repeat("─", remainder)
-	c.DrawString(allPostBitStr, 0, y, egg.ColorBlue, c.Background, c.Attribute)
+
+	c.DrawString(allPostBitStr, thisX, y+1, egg.ColorBlue, c.Background, c.Attribute)
+
+	// todo - add left margin and prepare for multiline headings!
+	x, y = _drawElementContent(n, c, x, y, rc, true)
 	return x, y + 1
 }
 
-func printParagraph(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	for _, l := range e.Content {
-		s := fmt.Sprintf("%s", l.Raw)
-		atts := c.Attribute
-		bg := c.Background
-		fg := c.Foreground
+func _drawAnchor(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nextX, nextY int) {
+	href := ""
+	for _, att := range n.Attr {
+		if att.Key == "href" {
+			href = att.Val
+			break
+		}
+	}
+	if href != "" {
+		// c.DrawString(href, x, y, egg.ColorMagenta, rc.bg, rc.atts)
+		rc.fg = egg.ColorBlue
+		c.DrawString("[", x, y, egg.ColorMagenta, rc.bg, rc.atts)
+		x++
+		x, y = _drawElementContent(n, c, x, y, rc, false)
+		c.DrawString(" @", x, y, egg.ColorMagenta, rc.bg, rc.atts)
+		x += 2
+		c.DrawString(href, x, y, egg.ColorBlue, rc.bg, rc.atts)
+		x += runewidth.StringWidth(href)
+		c.DrawString("]", x, y, egg.ColorMagenta, rc.bg, rc.atts)
+		x++
 
-		if l.Attribution&model.AttributionBold != 0 {
-			atts = atts | egg.AttrBold
+		return x, y
+	} else {
+		return _drawElementContent(n, c, x, y, rc, false)
+	}
+}
+
+func _drawElement(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nextX, nextY int) {
+	isBlock := htmlu.IsBlockNode(n)
+	if isBlock {
+		x, y = _breakConditionally(x, y, rc)
+	}
+
+	switch n.Data {
+	case "em":
+		rc.atts = rc.atts | egg.AttrUnderline
+	case "strong":
+		rc.atts = rc.atts | egg.AttrBold
+	case "code":
+		rc.fg = egg.ColorWhite
+		rc.bg = egg.ColorBlack
+	case "hr":
+		line := strings.Repeat("─", c.Width)
+		rc.lineTracker.drew()
+		c.DrawString(line, 0, y, egg.ColorYellow, c.Background, c.Attribute)
+	case "pre":
+		rc.preformatted = true
+	case "ul":
+		rc.listItemCardinality = 0
+		// rc.leftXMargin += listIndent
+		rc.listType = contextListUl
+	case "ol":
+		rc.listItemCardinality = 0
+		// rc.leftXMargin += listIndent
+		rc.listType = contextListOl
+	case "li":
+		rc.listItemCardinality++
+		switch rc.listType {
+		case contextListOl:
+			n := strconv.Itoa(rc.listItemCardinality)
+			indent := runewidth.StringWidth(n) + 2
+			c.DrawString(n+".", x, y, egg.ColorCyan, rc.bg, rc.atts)
+			x += indent
+			rc.leftXMargin += indent
+		default: //ul is default
+			c.DrawString("* ", x, y, egg.ColorCyan, rc.bg, rc.atts)
+			x += 2
+			rc.leftXMargin += 2
+			rc.lineTracker.drew()
 		}
-		if l.Attribution&model.AttributionCode != 0 {
-			bg = egg.ColorBlack
-			fg = egg.ColorWhite
-		}
-		if l.Attribution&model.AttributionEmphasis != 0 {
-			atts = atts | egg.AttrUnderline
-		}
-		if l.Attribution&model.AttributeAnchor != 0 {
-			href, ok := l.Context["href"]
-			if ok {
-				if href == s {
-					c.DrawString(href, x, y, egg.ColorBlue, bg, atts)
-					x += len(href)
-				} else {
-					c.DrawString("[", x, y, egg.ColorMagenta, bg, atts)
-					x++
-					c.DrawString(s, x, y, egg.ColorCyan, bg, atts)
-					x += runewidth.StringWidth(s)
-					c.DrawString("@", x, y, egg.ColorMagenta, bg, atts)
-					x++
-					c.DrawString(href, x, y, egg.ColorBlue, bg, atts)
-					x += runewidth.StringWidth(href)
-					c.DrawString("]", x, y, egg.ColorMagenta, bg, atts)
-					x++
-				}
-				continue
+	}
+
+	return _drawElementContent(n, c, x, y, rc, isBlock)
+}
+
+func _breakConditionally(x, y int, rc renderingContext) (int, int) {
+	if rc.lineTracker.doubleLineLock {
+		return x, y
+	}
+	rc.lineTracker.broke()
+	return rc.leftXMargin, y + 1
+}
+
+func _drawElementContent(n *html.Node, c egg.Canvas, x, y int, rc renderingContext, isBlock bool) (nextX, nextY int) {
+	for ch := n.FirstChild; ch != nil; ch = ch.NextSibling {
+		x, y = _drawNode(ch, c, x, y, rc)
+	}
+	if isBlock && !rc.lineTracker.doubleLineLock {
+		return _breakConditionally(x, y, rc)
+	}
+	return x, y
+}
+
+func _drawText(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nextX, nextY int) {
+	if rc.preformatted {
+		fullWidth := rc.rightXMargin - rc.leftXMargin
+		xx := x
+		// if preformatted, just render as is!
+		lines := strings.Split(n.Data, "\n")
+		for _, l := range lines {
+			llen := runewidth.StringWidth(l)
+			pad := ""
+			if llen < fullWidth {
+				pad = strings.Repeat(" ", fullWidth-llen)
 			}
+			c.DrawString(l+pad, xx, y, rc.fg, rc.bg, rc.atts)
+			y++
+			xx = x
 		}
-		c.DrawString(s, x, y, fg, bg, atts)
-		x += runewidth.StringWidth(s)
+		rc.lineTracker.drew()
+		return xx, y - 1 //todo I think this will mess up the spacing - y might need to be decremented, and not sure about x
 	}
-	y++
-	return x, y
-}
 
-func printCode(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	// code should only have 1 plain content
-	content := e.Content[0]
-	lines := strings.Split(content.Raw, "\n")
+	if strings.TrimSpace(n.Data) == "" {
+		return x, y
+	}
 
-	prepad := strings.Repeat("\000", c.Width)
-	c.DrawString(prepad, x, y, egg.ColorWhite, egg.ColorBlack, c.Attribute)
-	y++
-	for _, l := range lines {
-		s := fmt.Sprintf(" %s", l)
-		remainingL := c.Width - runewidth.StringWidth(s)
-		if remainingL <= 0 {
-			remainingL = 0
+	words := htmlu.DataToWords(n)
+	lastWordI := len(words) - 1
+	hasTrailing := strings.HasSuffix(n.Data, " ")
+
+	for i, w := range words {
+		wlen := runewidth.StringWidth(w)
+		if x+wlen > rc.rightXMargin {
+			// must wrap word
+			x = rc.leftXMargin
+			y++
 		}
-		padding := strings.Repeat("\000", remainingL)
-		c.DrawString(s+padding, x, y, egg.ColorWhite, egg.ColorBlack, egg.AttrNormal)
-		y++
-	}
-	return x, y
-}
 
-func printQuote(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	// code should only have 1 plain content
-	content := e.Content[0]
-	lines := strings.Split(content.Raw, "\n")
-
-	prepad := strings.Repeat("\000", c.Width)
-	c.DrawString(prepad, x, y, egg.ColorBlack, egg.ColorWhite, c.Attribute)
-	y++
-	for _, l := range lines {
-		s := fmt.Sprintf(" %s", l)
-		remainingL := c.Width - runewidth.StringWidth(s)
-		padding := strings.Repeat("\000", remainingL)
-		c.DrawString(s+padding, x, y, egg.ColorBlack, egg.ColorWhite, egg.AttrNormal)
-		y++
-	}
-	c.DrawString(prepad, x, y, egg.ColorBlack, egg.ColorWhite, c.Attribute)
-	y++
-	return x, y
-}
-
-func printList(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	// e should be a list (ul or ol)
-	log.Println("This should be a list: ", e.Tag)
-	for _, subE := range e.SubElements {
-		// subE should be a li
-		c.DrawString(" • ", x, y, c.Foreground, c.Background, c.Attribute)
-		for _, subSubE := range subE.SubElements {
-			// each element is just any thing
-			_, y = printGeneric(subSubE, c, x+3, y, tier+1)
+		if i == lastWordI && !hasTrailing {
+			c.DrawString(w, x, y, rc.fg, rc.bg, rc.atts)
+			x += runewidth.StringWidth(w)
+		} else {
+			c.DrawString(w+" ", x, y, rc.fg, rc.bg, rc.atts)
+			x += runewidth.StringWidth(w) + 1
 		}
 	}
-	return x, y
-}
-
-func printHR(e *model.Element, c egg.Canvas, x, y, tier int) (nextX, nextY int) {
-	str := strings.Repeat("─", c.Width)
-	c.DrawString(str, 0, y, egg.ColorRed, c.Background, c.Attribute)
-	return x, y + 1
-}
-
-func printListItem(e *model.Element, c egg.Canvas, x, y int, index int) (nextX, nextY int) {
+	rc.lineTracker.drew()
 	return x, y
 }
