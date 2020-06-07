@@ -34,13 +34,4 @@ func HTMLBody(n *html.Node) *html.Node {
 	return body
 }
 
-func IsBlockNode(n *html.Node) bool {
-	switch n.Data {
-	case "address", "article", "aside", "blockquote", "canvas", "dd", "div", "dl", "dt", "fieldset", "figcaption",
-		"figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr",
-		"li", "main", "nav", "noscript", "ol", "p", "pre", "section", "table", "tfoot", "ul", "video":
-		return true
-	default:
-		return false
-	}
-}
+

@@ -84,17 +84,17 @@ func (mc *MainController) handleEventInputMode(e *egg.KeyEvent) {
 	if mc.InputView.GetCursorX() == 0 {
 		switch e.Char {
 		case '?':
-			e.StopPropagation = true
+			e.SetPropagate(false)
 			mc.setInputMode(constants.InputModeSearch)
 			app.ReDraw()
 			return
 		case '>':
-			e.StopPropagation = true
+			e.SetPropagate(false)
 			mc.setInputMode(constants.InputModeTraverse)
 			app.ReDraw()
 			return
 		case ':':
-			e.StopPropagation = true
+			e.SetPropagate(false)
 			mc.setInputMode(constants.InputModeCommand)
 			app.ReDraw()
 			return
@@ -105,10 +105,10 @@ func (mc *MainController) handleEventInputMode(e *egg.KeyEvent) {
 	case egg.KeyEnter:
 		mc.handleEnter(e)
 	case egg.KeyTab:
-		e.StopPropagation = true
+		e.SetPropagate(false)
 		mc.handleAutocomplete(mc.InputView.GetTextContentString())
 	case egg.KeyArrowUp, egg.KeyArrowDown:
-		e.StopPropagation = true
+		e.SetPropagate(false)
 		mc.View.HandleKeyEvent(e)
 		app.ReDraw()
 	}
@@ -142,7 +142,7 @@ func (mc *MainController) setInputMode(m constants.InputMode) {
 }
 
 func (mc *MainController) handleEnter(e *egg.KeyEvent) {
-	e.StopPropagation = true
+	e.SetPropagate(false)
 	txt := mc.InputView.GetTextContentString()
 	switch inputMode {
 	case constants.InputModeTraverse:

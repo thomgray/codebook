@@ -31,6 +31,10 @@ func MakeMainView(application *egg.Application) *MainView {
 	mv.ScrollView.AddSubView(mv.DocumentView.View)
 	app.AddViewController(mv.ScrollView)
 	mv.DocumentView.SetVisible(false)
+	app.OnResizeEvent(func(re *egg.ResizeEvent) {
+		mv.resize(re.Width, re.Height)
+		app.ReDraw()
+	})
 	return &mv
 }
 
@@ -66,7 +70,10 @@ func (mv *MainView) SetActiveDocument(doc *model.Document) {
 	mv.OutputView.SetDocument(doc)
 
 	if mv.DocumentView.IsVisible() {
-		mv.OutputView.SetY(mv.DocumentView.GetBounds().Height + 1)
+		docBnds := mv.DocumentView.GetBounds()
+		outBnds := mv.OutputView.GetBounds()
+		outBnds.Y = docBnds.Height + 1
+		mv.OutputView.SetBounds(outBnds)
 	}
 	mv.refit()
 }

@@ -31,7 +31,9 @@ func (dv *DocumentView) SetDocument(doc *model.Document) {
 
 func (dv *DocumentView) resizeForDocument() {
 	if dv.doc == nil {
-		dv.SetHeight(0)
+		bnds := dv.GetBounds()
+		bnds.Height = 0
+		dv.SetBounds(bnds)
 	} else {
 		childrenC := len(dv.doc.SubDocuments)
 		parentC := 0
@@ -43,7 +45,9 @@ func (dv *DocumentView) resizeForDocument() {
 		}
 
 		log.Println("REsizieng. H = ", 1+childrenC+parentC)
-		dv.SetHeight(1 + childrenC + parentC)
+		bnds := dv.GetBounds()
+		bnds.Height = 1 + childrenC + parentC
+		dv.SetBounds(bnds)
 	}
 }
 

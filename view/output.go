@@ -1,6 +1,7 @@
 package view
 
 import (
+	"log"
 	"strconv"
 	"strings"
 
@@ -78,7 +79,9 @@ func (ov *OutputView) SetText(s *[]model.AttributedString) {
 	ov.doc = nil
 	ov.text = s
 	if ov.text != nil {
-		ov.SetHeight(len(*s))
+		bnds := ov.GetBounds()
+		bnds.Height = len(*s)
+		ov.SetBounds(bnds)
 	}
 }
 
@@ -103,8 +106,10 @@ func (ov *OutputView) drawText(c egg.Canvas) {
 func (ov *OutputView) drawFile(c egg.Canvas) {
 	if ov.doc != nil {
 		h := _drawDocument(ov.doc, c)
-		if h != ov.GetBounds().Height {
-			ov.SetHeight(h)
+		bnds := ov.GetBounds()
+		if h != bnds.Height {
+			bnds.Height = h
+			ov.SetBounds(bnds)
 			// need to redraw if changed size after drawing
 			egg.GetApplication().ReDraw()
 		}
@@ -195,6 +200,7 @@ func _drawAnchor(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nex
 }
 
 func _drawElement(n *html.Node, c egg.Canvas, x, y int, rc renderingContext) (nextX, nextY int) {
+	log.Printf("Drawing element, xmargin = %d x = %d data = %s", rc.leftXMargin, x, n.Data)
 	isBlock := htmlu.IsBlockNode(n)
 	if isBlock {
 		x, y = _breakConditionally(x, y, rc)
@@ -246,6 +252,7 @@ func _breakConditionally(x, y int, rc renderingContext) (int, int) {
 	if rc.lineTracker.doubleLineLock {
 		return x, y
 	}
+	log.Printf("> end of a block - should return to x margin %d", rc.leftXMargin)
 	rc.lineTracker.broke()
 	return rc.leftXMargin, y + 1
 }
