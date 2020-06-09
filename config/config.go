@@ -3,8 +3,6 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
-	"path/filepath"
 	"strings"
 
 	"github.com/thomgray/codebook/util"
@@ -13,7 +11,7 @@ import (
 // Config ...
 type Config struct {
 	SearchPaths []string
-	NotePaths   []string
+	// NotePaths   []string
 }
 
 // MakeConfig ...
@@ -24,7 +22,7 @@ func MakeConfig() *Config {
 // Init ...
 func (c *Config) Init() *Config {
 	c.SearchPaths = loadSeachPaths()
-	c.NotePaths = loadNotePaths(c.SearchPaths)
+	// c.NotePaths = loadNotePaths(c.SearchPaths)
 	return c
 }
 
@@ -34,22 +32,22 @@ func loadSeachPaths() []string {
 	return paths
 }
 
-func loadNotePaths(searchPaths []string) []string {
-	files := make([]string, 0)
+// func loadNotePaths(searchPaths []string) []string {
+// 	files := make([]string, 0)
 
-	for _, sp := range searchPaths {
-		f, err := ioutil.ReadDir(sp)
-		if err == nil {
-			for _, file := range f {
-				if file.Mode().IsRegular() && filepath.Ext(file.Name()) == ".md" {
-					files = append(files, fmt.Sprintf("%s/%s", sp, file.Name()))
-				}
-				log.Printf("File %s\n", fmt.Sprintf("%s/%s", sp, file.Name()))
-			}
-		}
-	}
-	return files
-}
+// 	for _, sp := range searchPaths {
+// 		f, err := ioutil.ReadDir(sp)
+// 		if err == nil {
+// 			for _, file := range f {
+// 				if file.Mode().IsRegular() && filepath.Ext(file.Name()) == ".md" {
+// 					files = append(files, fmt.Sprintf("%s/%s", sp, file.Name()))
+// 				}
+// 				log.Printf("File %s\n", fmt.Sprintf("%s/%s", sp, file.Name()))
+// 			}
+// 		}
+// 	}
+// 	return files
+// }
 
 var _homedir *string = nil
 
@@ -86,6 +84,6 @@ func (c *Config) RemoveSearchPath(sp string) {
 }
 
 // ReloadNotes ...
-func (c *Config) ReloadNotes() {
-	c.NotePaths = loadNotePaths(c.SearchPaths)
-}
+// func (c *Config) ReloadNotes() {
+// 	c.NotePaths = loadNotePaths(c.SearchPaths)
+// }

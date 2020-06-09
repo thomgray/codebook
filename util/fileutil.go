@@ -30,6 +30,13 @@ func ListFiles(path string) []string {
 	return res
 }
 
+func ListFilesShort(path string) []os.FileInfo {
+	files, err := ioutil.ReadDir(path)
+
+	Check(err)
+	return files
+}
+
 // ReadFile - reads a file contents. Empty bytes if file doesn't exist, second param is false is file doesn't exist.
 // Panics on any other error
 func ReadFile(path string) (data []byte, exists bool) {
@@ -39,4 +46,12 @@ func ReadFile(path string) (data []byte, exists bool) {
 	}
 	Check(err)
 	return bytes, true
+}
+
+func PathExists(path string) (os.FileInfo, bool) {
+	res, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return res, false
+	}
+	return res, true
 }

@@ -78,6 +78,13 @@ func (mv *MainView) SetActiveDocument(doc *model.Document) {
 	mv.refit()
 }
 
+func (mv *MainView) SetActiveFile(file *model.File) {
+	mv.activeFile = file
+	mv.OutputView.SetFile(file)
+	mv.DocumentView.SetVisible(false) // for now
+	mv.refit()
+}
+
 func (mv *MainView) SetSpecialOutput(str *[]model.AttributedString) {
 	mv.DocumentView.SetVisible(false)
 	mv.OutputView.SetText(str)

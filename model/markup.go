@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/thomgray/codebook/htmlu"
 	"golang.org/x/net/html"
 )
 
@@ -66,7 +65,6 @@ type Element struct {
 func DocumentFromNode(n *html.Node, filename string) *Document {
 	d := Document{}
 	d.Node = n
-	htmlu.FixWhitespace(d.Node, true)
 	els := make([]*Element, 0)
 
 	for node := n.FirstChild; node != nil; node = node.NextSibling {

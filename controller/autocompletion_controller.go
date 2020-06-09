@@ -27,37 +27,45 @@ func (ar autocompleteResult) prefix(whole, comparable string) autocompleteResult
 }
 
 func (mc *MainController) handleAutocompleteNote(str string) {
-	querySanitied := strings.TrimLeft(util.SanitiseString(str), " ")
-	query, mode := getQueryAndMode(querySanitied)
-	queryLcase := strings.ToLower(query)
+	completeSuggestions := mc.FileManager.SuggestPaths(str)
 
-	res := make([]autocompleteResult, 0)
+	if len(completeSuggestions) == 1 {
+		newQuery := completeSuggestions[0]
+		mc.InputView.SetTextContentString(newQuery)
+		mc.InputView.SetCursorX(runewidth.StringWidth(newQuery))
+		app.ReDraw()
+	}
+	// querySanitied := strings.TrimLeft(util.SanitiseString(str), " ")
+	// query, mode := getQueryAndMode(querySanitied)
+	// queryLcase := strings.ToLower(query)
 
-	if mc.activeDocument != nil {
-		if mode == TraversalModeDefault || mode == TraveralModeHere {
-			for _, c := range mc.activeDocument.SubDocuments {
-				res = append(res, findCompletionsForDocument(c, queryLcase)...)
-			}
-		} else if mode == TraveralModeRoot {
-			super := TopLevelDocument(mc.activeDocument)
-			for _, c := range super.SubDocuments {
-				res = append(res, findCompletionsForDocument(c, queryLcase)...)
-			}
-		}
-	}
-	if len(res) > 0 {
-		handleCompleteWithCompletions(mc, res, mode)
-		return
-	}
+	// res := make([]autocompleteResult, 0)
 
-	if mode == TraversalModeDefault || mode == TraveralModeExt {
-		for _, f := range mc.FileManager.Files {
-			if f.Document != nil {
-				res = append(res, findCompletionsForDocument(f.Document, queryLcase)...)
-			}
-		}
-	}
-	handleCompleteWithCompletions(mc, res, mode)
+	// if mc.activeDocument != nil {
+	// 	if mode == TraversalModeDefault || mode == TraveralModeHere {
+	// 		for _, c := range mc.activeDocument.SubDocuments {
+	// 			res = append(res, findCompletionsForDocument(c, queryLcase)...)
+	// 		}
+	// 	} else if mode == TraveralModeRoot {
+	// 		super := TopLevelDocument(mc.activeDocument)
+	// 		for _, c := range super.SubDocuments {
+	// 			res = append(res, findCompletionsForDocument(c, queryLcase)...)
+	// 		}
+	// 	}
+	// }
+	// if len(res) > 0 {
+	// 	handleCompleteWithCompletions(mc, res, mode)
+	// 	return
+	// }
+
+	// if mode == TraversalModeDefault || mode == TraveralModeExt {
+	// 	for _, f := range mc.FileManager.Files {
+	// 		if f.Document != nil {
+	// 			res = append(res, findCompletionsForDocument(f.Document, queryLcase)...)
+	// 		}
+	// 	}
+	// }
+	// handleCompleteWithCompletions(mc, res, mode)
 }
 
 func findCompletionsForDocument(doc *model.Document, query string) []autocompleteResult {

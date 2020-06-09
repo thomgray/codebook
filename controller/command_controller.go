@@ -62,7 +62,7 @@ var commands = []*command{
 			}
 			sp := args[0]
 			mc.Config.AddSearchPath(sp)
-			mc.Config.ReloadNotes()
+			// mc.Config.ReloadNotes()
 			mc.reloadFiles()
 			return true
 		},
@@ -76,7 +76,7 @@ var commands = []*command{
 			}
 			sp := args[0]
 			mc.Config.RemoveSearchPath(sp)
-			mc.Config.ReloadNotes()
+			// mc.Config.ReloadNotes()
 			mc.reloadFiles()
 			return true
 		},

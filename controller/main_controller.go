@@ -20,6 +20,7 @@ type MainController struct {
 	Config         *config.Config
 	FileManager    *model.FileManager
 	activeDocument *model.Document
+	activeFile     *model.File
 }
 
 // Mode ...
@@ -44,7 +45,7 @@ func InitMainController(config *config.Config) *MainController {
 		InputView:   view.MakeInputView(app),
 		ModalMenu:   view.MakeModalMenu(),
 		Config:      config,
-		FileManager: model.MakeFileManager(),
+		FileManager: model.MakeFileManager(config),
 	}
 
 	app.AddViewController(mc.ModalMenu)
@@ -61,7 +62,7 @@ func (mc *MainController) init() {
 }
 
 func (mc *MainController) reloadFiles() {
-	mc.FileManager.LoadFiles(mc.Config.NotePaths)
+	// mc.FileManager.LoadFiles(mc.Config.NotePaths)
 }
 
 func (mc *MainController) keyEventDelegate(e *egg.KeyEvent) {
@@ -179,49 +180,84 @@ func (mc *MainController) SetActiveDocument(d *model.Document) {
 	mc.InputView.SetCursorX(0)
 }
 
+func (mc *MainController) SetActiveFile(f *model.File) {
+	mc.activeFile = f
+	mc.View.SetActiveFile(f)
+	mc.InputView.SetTextContentString("")
+	mc.InputView.SetCursorX(0)
+}
+
 func (mc *MainController) handleTraverse(strUntreated string) {
-	complete := func(doc *model.Document) {
-		mc.SetActiveDocument(doc)
+	complete := func(file *model.File) {
+		mc.SetActiveFile(file)
 		app.ReDraw()
 	}
 
 	strTrimmed := strings.TrimSpace(strings.ToLower(strUntreated))
-	str, mode := getQueryAndMode(strTrimmed)
-	log.Printf("Doing a traverse w/ mode %d and command %s", mode, str)
+	log.Println("traversing", strTrimmed)
+	// pathFragments := strings.Split(strTrimmed, "/")
 
-	var d *model.Document = nil
-
-	if mc.activeDocument != nil {
-		doc := mc.activeDocument
-
-		if mode == TraversalModeDefault || mode == TraveralModeHere {
-			d = queryDocument(doc, str, false)
-			if d != nil {
-				complete(d)
-				return
-			}
-		} else if mode == TraveralModeRoot {
-			top := TopLevelDocument(doc)
-			d = queryDocument(top, str, false)
-			if d != nil {
-				complete(d)
-				return
-			}
-		}
-	}
-
-	if mode == TraversalModeDefault || mode == TraveralModeExt {
-		for _, file := range mc.FileManager.Files {
-			if file.Document != nil {
-				d = queryDocument(file.Document, str, true)
-				if d != nil {
-					complete(d)
-					return
-				}
-			}
-		}
+	files := mc.FileManager.TraversePath(strTrimmed)
+	if len(files) == 1 {
+		file := files[0]
+		complete(file)
+		log.Println("Active file set")
 	}
 }
+
+func matchesLocation(f *model.File, path string) bool {
+	for _, loc := range f.Locations {
+		if strings.EqualFold(loc.RelativePathWithName, path) {
+			// path matches fully
+			return true
+		}
+	}
+	return false
+}
+
+// func (mc *MainController)handleTraverse(strUntreated string) {
+// 	complete := func(doc *model.Document) {
+// 		mc.SetActiveDocument(doc)
+// 		app.ReDraw()
+// 	}
+
+// 	strTrimmed := strings.TrimSpace(strings.ToLower(strUntreated))
+// 	str, mode := getQueryAndMode(strTrimmed)
+// 	log.Printf("Doing a traverse w/ mode %d and command %s", mode, str)
+
+// 	var d *model.Document = nil
+
+// 	if mc.activeDocument != nil {
+// 		doc := mc.activeDocument
+
+// 		if mode == TraversalModeDefault || mode == TraveralModeHere {
+// 			d = queryDocument(doc, str, false)
+// 			if d != nil {
+// 				complete(d)
+// 				return
+// 			}
+// 		} else if mode == TraveralModeRoot {
+// 			top := TopLevelDocument(doc)
+// 			d = queryDocument(top, str, false)
+// 			if d != nil {
+// 				complete(d)
+// 				return
+// 			}
+// 		}
+// 	}
+
+// 	if mode == TraversalModeDefault || mode == TraveralModeExt {
+// 		for _, file := range mc.FileManager.Files {
+// 			if file.Document != nil {
+// 				d = queryDocument(file.Document, str, true)
+// 				if d != nil {
+// 					complete(d)
+// 					return
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 func (mc *MainController) handleSpecial(str string) bool {
 	overruled := false
