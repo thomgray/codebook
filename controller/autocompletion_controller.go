@@ -34,6 +34,10 @@ func (mc *MainController) handleAutocompleteNote(str string) {
 		mc.InputView.SetTextContentString(newQuery)
 		mc.InputView.SetCursorX(runewidth.StringWidth(newQuery))
 		app.ReDraw()
+	} else {
+		mc.CompletionView.SetVisible(true)
+		mc.CompletionView.SetCompletions(completeSuggestions)
+		app.ReDraw()
 	}
 	// querySanitied := strings.TrimLeft(util.SanitiseString(str), " ")
 	// query, mode := getQueryAndMode(querySanitied)

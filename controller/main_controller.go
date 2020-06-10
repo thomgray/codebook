@@ -17,6 +17,7 @@ type MainController struct {
 	View           *view.MainView
 	InputView      *view.InputView
 	ModalMenu      *view.ModalMenu
+	CompletionView *view.CompletionView
 	Config         *config.Config
 	FileManager    *model.FileManager
 	activeDocument *model.Document
@@ -41,11 +42,12 @@ func InitMainController(config *config.Config) *MainController {
 	app = egg.InitOrPanic()
 
 	mc := MainController{
-		View:        view.MakeMainView(app),
-		InputView:   view.MakeInputView(app),
-		ModalMenu:   view.MakeModalMenu(),
-		Config:      config,
-		FileManager: model.MakeFileManager(config),
+		View:           view.MakeMainView(app),
+		InputView:      view.MakeInputView(app),
+		ModalMenu:      view.MakeModalMenu(),
+		CompletionView: view.MakeCompletionView(),
+		Config:         config,
+		FileManager:    model.MakeFileManager(config),
 	}
 
 	app.AddViewController(mc.ModalMenu)
@@ -144,6 +146,7 @@ func (mc *MainController) setInputMode(m constants.InputMode) {
 
 func (mc *MainController) handleEnter(e *egg.KeyEvent) {
 	e.SetPropagate(false)
+	mc.CompletionView.SetVisible(false)
 	txt := mc.InputView.GetTextContentString()
 	switch inputMode {
 	case constants.InputModeTraverse:

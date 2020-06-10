@@ -113,7 +113,7 @@ func (prc PostRenderingContext) noOp(rc RenderingContext) PostRenderingContext {
 	return prc
 }
 
-func RenderHtml(node *html.Node, c egg.Canvas) {
+func RenderHtml(node *html.Node, c egg.Canvas) int {
 	rc := RenderingContext{
 		Canvas: c,
 		Box: Box{
@@ -124,7 +124,8 @@ func RenderHtml(node *html.Node, c egg.Canvas) {
 		cursorX: 0,
 		cursorY: 0,
 	}
-	renderRecursive(node, rc)
+	pc := renderRecursive(node, rc)
+	return pc.cursorY
 }
 
 func renderRecursive(n *html.Node, c RenderingContext) PostRenderingContext {

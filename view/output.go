@@ -111,7 +111,13 @@ func (ov *OutputView) drawFile(c egg.Canvas) {
 		return
 	}
 
-	htmlrender.RenderHtml(node, c)
+	h := htmlrender.RenderHtml(node, c) + 1
+	if ov.GetBounds().Height != h {
+		newb := ov.GetBounds()
+		newb.Height = h
+		ov.SetBounds(newb)
+		app.ReDraw()
+	}
 }
 
 func (ov *OutputView) drawText(c egg.Canvas) {
