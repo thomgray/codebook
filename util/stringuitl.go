@@ -133,3 +133,12 @@ func LongestCommonPrefix(str1, str2 string) string {
 
 	return string(res)
 }
+
+func StringSliceContains(slice []string, s string) bool {
+	for _, str := range slice {
+		if str == s {
+			return true
+		}
+	}
+	return false
+}

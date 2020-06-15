@@ -5,12 +5,15 @@ import (
 	"strings"
 
 	"github.com/thomgray/codebook/model"
+	"github.com/thomgray/codebook/util"
+	"github.com/thomgray/egg"
 )
 
 type command struct {
 	aliases     []string
 	desctiption string
 	action      func(*MainController, []string) bool
+	keyhandler  func(ke *egg.KeyEvent)
 }
 
 var commands = []*command{
@@ -31,11 +34,13 @@ var commands = []*command{
 		desctiption: "List configured search paths",
 		action: func(mc *MainController, args []string) bool {
 			sp := mc.Config.SearchPaths
-			as := make([]model.AttributedString, len(sp))
-			for i, spath := range sp {
-				as[i] = model.MakeASFromPlainString(spath)
-			}
-			mc.View.SetSpecialOutput(&as)
+
+			mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+				for i, spath := range sp {
+					c.DrawString2(spath, 0, i)
+				}
+			})
+
 			return true
 		},
 	},
@@ -43,13 +48,20 @@ var commands = []*command{
 		aliases:     []string{"l"},
 		desctiption: "List top level documents",
 		action: func(mc *MainController, args []string) bool {
-			as := make([]model.AttributedString, 0)
-			for _, f := range mc.FileManager.Files {
-				if f.Document != nil {
-					as = append(as, model.MakeASFromPlainString(f.Document.SearchTerm))
+			allFilesPaths := mc.FileManager.FindSupportedFilePaths()
+
+			mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+				for i, f := range allFilesPaths {
+					c.DrawString2(f.QueryPath(), 0, i)
 				}
+			})
+
+			curBounds := mc.View.OutputView.GetBounds()
+			if curBounds.Height < len(allFilesPaths) {
+				curBounds.Height = len(allFilesPaths)
+				mc.View.OutputView.SetBounds(curBounds)
+				mc.View.ScrollView.ReDraw()
 			}
-			mc.View.SetSpecialOutput(&as)
 			return true
 		},
 	},
@@ -90,6 +102,66 @@ var commands = []*command{
 			return true
 		},
 	},
+	&command{
+		aliases:     []string{"cd"},
+		desctiption: "Change document root",
+		action: func(mc *MainController, args []string) bool {
+			positional, flags, _ := parseOptions(args)
+			if len(positional) == 0 {
+				return false
+			}
+
+			path := positional[0]
+			if info, exists := util.PathExists(path); exists && info.IsDir() {
+				mc.Config.SetCurrentDocRoot(path)
+
+				if util.StringSliceContains(flags, "default") {
+					// make this the default root
+					mc.Config.SetDefaultDocRoot(path)
+				}
+				return true
+			}
+			return false
+		},
+	},
+	&command{
+		aliases:     []string{"pwd"},
+		desctiption: "Output current document root",
+		action: func(mc *MainController, args []string) bool {
+			root := mc.Config.DocumentRoot()
+			str := "?"
+			if root != nil {
+				str = *root
+			}
+
+			mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+				c.DrawString2(str, 0, 0)
+			})
+
+			return true
+		},
+	},
+}
+
+func parseOptions(args []string) ([]string, []string, map[string]string) {
+	positional := make([]string, 0)
+	flags := make([]string, 0)
+	options := make(map[string]string)
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--") {
+			flags = append(flags, strings.TrimPrefix(arg, "--"))
+		} else if arg == "-d" {
+			flags = append(flags, "default")
+		} else if strings.HasPrefix(arg, "-") {
+			// noop - ignore unknown shorthand
+		} else {
+			// positional
+			positional = append(positional, arg)
+		}
+	}
+
+	return positional, flags, options
 }
 
 func (mc *MainController) handleCommand(str string) {
@@ -151,8 +223,16 @@ func initHelp() {
 func bootstrapCommands() {
 	// needs to be done this way for circularity reasons :(
 	commands[0].action = func(mc *MainController, args []string) bool {
-		txt := GetHelp()
-		mc.View.SetSpecialOutput(txt)
+		mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+			y := 0
+			for _, cmd := range commands {
+				aliases := strings.Join(cmd.aliases, " | ")
+				plain := fmt.Sprintf("- %s : %s", aliases, cmd.desctiption)
+
+				c.DrawString2(plain, 0, y)
+				y++
+			}
+		})
 		return true
 	}
 }

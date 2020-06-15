@@ -74,7 +74,7 @@ func (rc RenderingContext) applyBlock(tag string) RenderingContext {
 	if rc.shouldStartNewBlock {
 		// otherwise there is already a block, so don't double the blocks!
 		// rc.Canvas.DrawString2(fmt.Sprintf("{%s}", tag), rc.cursorX, rc.cursorY)
-		rc.cursorY++
+		rc.cursorY += 1
 		rc.shouldStartNewBlock = false
 	}
 	// either way, a new block should reset the x cursor to the left margin
@@ -98,7 +98,7 @@ func (prc PostRenderingContext) merge(prc2 PostRenderingContext) PostRenderingCo
 
 func (prc PostRenderingContext) applyBlock(rc RenderingContext, tag string) PostRenderingContext {
 	if prc.shouldStartNewBlock {
-		prc.cursorY++
+		prc.cursorY += 1
 	}
 	prc.cursorX = rc.leftMargin
 	prc.shouldStartNewBlock = false
@@ -262,7 +262,11 @@ func renerTextPreformatted(n *html.Node, c RenderingContext) PostRenderingContex
 	boxW := c.Canvas.Width - c.leftMargin - 1
 	lines := strings.Split(s, "\n")
 	for _, l := range lines {
-		pad := strings.Repeat("\000", boxW-runewidth.StringWidth(l))
+		padL := boxW - runewidth.StringWidth(l)
+		if padL < 0 {
+			padL = 0
+		}
+		pad := strings.Repeat("\000", padL)
 		c.Canvas.DrawString2(l+pad, c.cursorX, c.cursorY)
 		c.cursorY++
 	}

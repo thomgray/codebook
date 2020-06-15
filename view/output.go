@@ -3,8 +3,6 @@ package view
 import (
 	"log"
 
-	"github.com/mattn/go-runewidth"
-
 	"github.com/thomgray/codebook/htmlrender"
 	"github.com/thomgray/codebook/model"
 	"github.com/thomgray/egg"
@@ -26,9 +24,9 @@ const listIndent int = 2
 
 type OutputView struct {
 	*egg.View
-	doc  *model.Document
-	file *model.File
-	text *[]model.AttributedString
+	doc        *model.Document
+	file       *model.File
+	customDraw func(egg.Canvas)
 }
 type contextListType uint8
 
@@ -68,34 +66,32 @@ func MakeOutputView() *OutputView {
 	return &ov
 }
 
+func (ov *OutputView) UnbindDraw() {
+	ov.View.OnDraw(ov.draw)
+}
+
+func (ov *OutputView) CustomDraw(f func(egg.Canvas)) {
+	ov.View.OnDraw(f)
+}
+
 func (ov *OutputView) SetDocument(f *model.Document) {
 	ov.doc = f
-	ov.text = nil
+	ov.UnbindDraw()
 }
 
 func (ov *OutputView) SetFile(f *model.File) {
 	ov.file = f
-	ov.text = nil
-}
-
-func (ov *OutputView) SetText(s *[]model.AttributedString) {
-	ov.doc = nil
-	ov.text = s
-	if ov.text != nil {
-		bnds := ov.GetBounds()
-		bnds.Height = len(*s)
-		ov.SetBounds(bnds)
-	}
+	bnds := ov.GetBounds()
+	bnds.Origin.Y = 0
+	ov.SetBounds(bnds)
+	ov.UnbindDraw()
 }
 
 func (ov *OutputView) draw(c egg.Canvas) {
-	if ov.file != nil {
+	if ov.customDraw != nil {
+		ov.customDraw(c)
+	} else if ov.file != nil {
 		ov.drawFile(c)
-	}
-	if ov.doc != nil {
-		// ov.drawFile(c)
-	} else if ov.text != nil {
-		ov.drawText(c)
 	}
 }
 
@@ -117,15 +113,5 @@ func (ov *OutputView) drawFile(c egg.Canvas) {
 		newb.Height = h
 		ov.SetBounds(newb)
 		app.ReDraw()
-	}
-}
-
-func (ov *OutputView) drawText(c egg.Canvas) {
-	for i, l := range *ov.text {
-		x := 0
-		for _, seg := range l {
-			c.DrawString(seg.Text, x, i, seg.Foreground, seg.Background, seg.Attributes)
-			x += runewidth.StringWidth(seg.Text)
-		}
 	}
 }

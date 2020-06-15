@@ -17,6 +17,18 @@ type Location struct {
 	RelativePathWithName string
 }
 
+type FilePath struct {
+	Full     string
+	BaseDir  string
+	Relative string
+	FileInfo os.FileInfo
+}
+
+func (fp FilePath) QueryPath() string {
+	ext := filepath.Ext(fp.Relative)
+	return strings.TrimSuffix(fp.Relative, ext)
+}
+
 type File struct {
 	Path      string
 	Extension string
@@ -93,6 +105,20 @@ func fileIsRelevant(info os.FileInfo) bool {
 	return false
 }
 
+func isSupportedFile(info os.FileInfo) bool {
+	if !info.Mode().IsRegular() {
+		return false
+	}
+
+	extn := filepath.Ext(info.Name())
+	switch extn {
+	case ".md":
+		// case ".html":
+		return true
+	}
+	return false
+}
+
 func completionString(info os.FileInfo, base string) string {
 	if info.IsDir() {
 		return filepath.Join(base, info.Name()) + string(os.PathSeparator)
@@ -101,6 +127,58 @@ func completionString(info os.FileInfo, base string) string {
 		base,
 		strings.TrimSuffix(info.Name(), filepath.Ext(info.Name())),
 	)
+}
+
+func (fm *FileManager) FindSupportedFilePaths() []FilePath {
+	res := make([]FilePath, 0)
+
+	docRoot := fm.Config.DocumentRoot()
+	if docRoot == nil {
+		return res
+	}
+
+	filepath.Walk(*docRoot, func(path string, info os.FileInfo, err error) error {
+		if isSupportedFile(info) {
+			if relative, err := filepath.Rel(*docRoot, path); err == nil {
+				fp := FilePath{
+					Full:     path,
+					BaseDir:  *docRoot,
+					Relative: relative,
+					FileInfo: info,
+				}
+				res = append(res, fp)
+			}
+		}
+		return nil
+	})
+
+	return res
+}
+
+func (fm *FileManager) FindPossibleBasePathsFromFiles(possFiles []FilePath) []string {
+	res := make([]string, 0)
+	var resContains func(string) bool
+	resContains = func(str string) bool {
+		for _, s := range res {
+			if s == str {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, f := range possFiles {
+		relativeDir := filepath.Dir(f.Relative)
+		if !resContains(relativeDir) {
+			res = append(res, relativeDir)
+		}
+	}
+
+	return res
+}
+
+func (fm *FileManager) FindPossibleBasePaths() []string {
+	return fm.FindPossibleBasePathsFromFiles(fm.FindSupportedFilePaths())
 }
 
 func (fm *FileManager) TraversePath(path string) []*File {

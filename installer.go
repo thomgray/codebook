@@ -1,14 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/thomgray/codebook/config"
 )
 
 func install() {
-	installDir := fmt.Sprintf("%s/.codebook", config.GetAppConfig().HomeDir)
+	installDir := filepath.Join(config.GetAppConfig().HomeDir, ".codebook")
 
 	if _, err := os.Stat(installDir); os.IsNotExist(err) {
 		os.Mkdir(installDir, os.ModePerm)
