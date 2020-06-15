@@ -46,7 +46,6 @@ func (c *Config) Init() *Config {
 	} else {
 		log.Panicln(err)
 	}
-	log.Println("cpnfig >>> ", *c.conf.DefaultRoot)
 	return c
 }
 

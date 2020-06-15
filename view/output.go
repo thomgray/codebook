@@ -8,51 +8,11 @@ import (
 	"github.com/thomgray/egg"
 )
 
-type lineTracker struct {
-	doubleLineLock bool
-}
-
-func (lt *lineTracker) drew() {
-	lt.doubleLineLock = false
-}
-
-func (lt *lineTracker) broke() {
-	lt.doubleLineLock = true
-}
-
-const listIndent int = 2
-
 type OutputView struct {
 	*egg.View
 	doc        *model.Document
 	file       *model.File
 	customDraw func(egg.Canvas)
-}
-type contextListType uint8
-
-const (
-	contextListUl contextListType = iota
-	contextListOl
-)
-
-// context passed from parent to children
-type renderingContext struct {
-	c                   egg.Canvas
-	fg                  egg.Color
-	bg                  egg.Color
-	atts                egg.Attribute
-	listType            contextListType
-	listItemCardinality int
-	preformatted        bool
-	leftXMargin         int
-	rightXMargin        int
-	lineTracker         *lineTracker
-}
-
-// context passed back from child to parent
-type renderingBackContext struct {
-	x int
-	y int
 }
 
 func MakeOutputView() *OutputView {

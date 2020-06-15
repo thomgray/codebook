@@ -47,7 +47,7 @@ func (mv *MainView) fitToWindow() {
 func (mv *MainView) refit() {
 	bs := mv.ScrollView.GetBounds()
 	outputY := 0
-	mv.OutputView.SetBounds(egg.MakeBounds(0, outputY, bs.Width, bs.Height-outputY))
+	mv.OutputView.SetBounds(egg.MakeBounds(0, outputY, bs.Width-1, bs.Height-outputY))
 }
 
 // func (mv *MainView) SetActiveDocument(doc *model.Document) {

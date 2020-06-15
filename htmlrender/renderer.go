@@ -2,7 +2,6 @@ package htmlrender
 
 import (
 	"fmt"
-	"math"
 	"regexp"
 	"strings"
 
@@ -49,6 +48,7 @@ type RenderingContext struct {
 	cursorY             int
 	endsInWhitespace    bool
 	shouldStartNewBlock bool
+	didEndBlock         bool
 	preformatted        bool
 	strikethrough       bool
 }
@@ -59,6 +59,7 @@ func (rc RenderingContext) applyPost(prc PostRenderingContext) RenderingContext 
 	rc.cursorY = prc.cursorY
 	rc.endsInWhitespace = prc.endsInWhitespace
 	rc.shouldStartNewBlock = prc.shouldStartNewBlock
+	rc.didEndBlock = prc.didEndBlock
 	return rc
 }
 
@@ -71,12 +72,16 @@ func (rc RenderingContext) setLeftMargin(x int) RenderingContext {
 }
 
 func (rc RenderingContext) applyBlock(tag string) RenderingContext {
-	if rc.shouldStartNewBlock {
-		// otherwise there is already a block, so don't double the blocks!
-		// rc.Canvas.DrawString2(fmt.Sprintf("{%s}", tag), rc.cursorX, rc.cursorY)
-		rc.cursorY += 1
-		rc.shouldStartNewBlock = false
+	if !rc.didEndBlock {
+		rc.cursorY += 2
+		rc.didEndBlock = true
 	}
+	// if rc.shouldStartNewBlock {
+	// 	// otherwise there is already a block, so don't double the blocks!
+	// 	// rc.Canvas.DrawString2(fmt.Sprintf("{%s}", tag), rc.cursorX, rc.cursorY)
+	// 	rc.cursorY += 2
+	// 	rc.shouldStartNewBlock = false
+	// }
 	// either way, a new block should reset the x cursor to the left margin
 	rc.cursorX = rc.leftMargin
 	return rc
@@ -87,19 +92,18 @@ type PostRenderingContext struct {
 	cursorY             int
 	endsInWhitespace    bool
 	shouldStartNewBlock bool
-}
-
-func (prc PostRenderingContext) merge(prc2 PostRenderingContext) PostRenderingContext {
-	return PostRenderingContext{
-		cursorX: int(math.Max(float64(prc.cursorX), float64(prc2.cursorX))),
-		cursorY: int(math.Max(float64(prc.cursorY), float64(prc2.cursorY))),
-	}
+	didEndBlock         bool
 }
 
 func (prc PostRenderingContext) applyBlock(rc RenderingContext, tag string) PostRenderingContext {
-	if prc.shouldStartNewBlock {
-		prc.cursorY += 1
+	if !prc.didEndBlock {
+		prc.cursorY += 2
+		// no need to apply a new block
 	}
+	prc.didEndBlock = true
+	// if prc.shouldStartNewBlock {
+	// 	prc.cursorY += 2
+	// }
 	prc.cursorX = rc.leftMargin
 	prc.shouldStartNewBlock = false
 	return prc
@@ -110,6 +114,7 @@ func (prc PostRenderingContext) noOp(rc RenderingContext) PostRenderingContext {
 	prc.cursorY = rc.cursorY
 	prc.endsInWhitespace = rc.endsInWhitespace
 	prc.shouldStartNewBlock = rc.shouldStartNewBlock
+	prc.didEndBlock = rc.didEndBlock
 	return prc
 }
 
@@ -121,8 +126,9 @@ func RenderHtml(node *html.Node, c egg.Canvas) int {
 			rightMargin: c.Width,
 			topMargin:   0,
 		},
-		cursorX: 0,
-		cursorY: 0,
+		cursorX:     0,
+		cursorY:     0,
+		didEndBlock: true, // initially true to prompt
 	}
 	pc := renderRecursive(node, rc)
 	return pc.cursorY
@@ -210,6 +216,11 @@ func renderHeading(n *html.Node, rc RenderingContext) PostRenderingContext {
 	rc.Canvas.Attribute |= egg.AttrBold
 	prc := renderChildren(n, rc, thisRc)
 
+	if prc.didEndBlock && prc.cursorY > 0 {
+		// if child rendering applied a newline gap, back up one
+		prc.cursorY--
+	}
+
 	y := prc.cursorY
 	yBegin := thisRc.cursorY
 
@@ -220,9 +231,9 @@ func renderHeading(n *html.Node, rc RenderingContext) PostRenderingContext {
 	underline := strings.Repeat("─", rc.Canvas.Width-thisRc.leftMargin-padW-1)
 	rc.Canvas.DrawString(underline, thisRc.leftMargin+padW, yBegin, egg.ColorBlue, thisRc.Canvas.Background, thisRc.Canvas.Attribute)
 
-	prc.cursorY++
-	// prc.cursorX = thisRc.leftMargin
-	// prc.shouldStartNewBlock = false
+	prc.cursorY += 2
+	prc.cursorX = thisRc.leftMargin
+	prc.didEndBlock = true
 	return prc
 }
 
@@ -249,28 +260,71 @@ func renderText(n *html.Node, c RenderingContext) PostRenderingContext {
 		return prc
 	}
 
-	// normalS = strings.ReplaceAll(normalS, " ", "·")
-	c.Canvas.DrawString2(normalS, c.cursorX, c.cursorY)
+	lineL := c.rightMargin - c.cursorX
+	boxW := c.rightMargin - c.leftMargin
+	if lineL < 0 {
+		c.cursorY++
+		c.cursorX = c.leftMargin
+		lineL = boxW
+	}
+
+	keepWriting := true
+	for keepWriting {
+		slice, remainder, finised := sliceForLine(normalS, lineL, boxW)
+		normalS = remainder
+		c.Canvas.DrawString2(slice, c.cursorX, c.cursorY)
+		if !finised {
+			// new line
+			c.cursorX = c.leftMargin
+			c.cursorY++
+			lineL = boxW
+		} else {
+			c.cursorX = c.cursorX + runewidth.StringWidth(slice)
+		}
+		keepWriting = !finised
+	}
+
 	prc.endsInWhitespace = endsWithWs
 	prc.shouldStartNewBlock = true
-	prc.cursorX += strLen
+	prc.didEndBlock = false
+	prc.cursorX = c.cursorX
+	prc.cursorY = c.cursorY
 	return prc
 }
 
 func renerTextPreformatted(n *html.Node, c RenderingContext) PostRenderingContext {
-	s := n.Data
+	s := killTabsDead(n.Data)
 	boxW := c.Canvas.Width - c.leftMargin - 1
 	lines := strings.Split(s, "\n")
+	blankR := regexp.MustCompile("^\\s*$")
+	firstLineIsBlank := blankR.Match([]byte(lines[0]))
+	lastLineIsBlank := blankR.Match([]byte(lines[len(lines)-1]))
+
+	if !firstLineIsBlank {
+		pad := strings.Repeat("\000", boxW)
+		c.Canvas.DrawString2(pad, c.leftMargin, c.cursorY)
+		c.cursorY++
+	}
+
 	for _, l := range lines {
 		padL := boxW - runewidth.StringWidth(l)
 		if padL < 0 {
 			padL = 0
 		}
 		pad := strings.Repeat("\000", padL)
-		c.Canvas.DrawString2(l+pad, c.cursorX, c.cursorY)
+		c.Canvas.DrawString2(l+pad, c.leftMargin, c.cursorY)
 		c.cursorY++
 	}
+
+	if !lastLineIsBlank {
+		pad := strings.Repeat("\000", boxW)
+		c.Canvas.DrawString2(pad, c.leftMargin, c.cursorY)
+		c.cursorY++
+	}
+
 	prc := PostRenderingContext{}.noOp(c)
+	prc.didEndBlock = true
+	prc.cursorY++
 	return prc
 }
 
@@ -320,10 +374,4 @@ func elementIsOtherVisisble(tagName string) bool {
 		}
 	}
 	return false
-}
-
-func normaliseText(txt string) string {
-	regex := regexp.MustCompile("\\s+")
-	s := regex.ReplaceAllString(txt, " ")
-	return s
 }
