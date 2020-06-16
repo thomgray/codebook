@@ -1,7 +1,6 @@
 package util
 
 import (
-	"log"
 	"strings"
 
 	"github.com/russross/blackfriday/v2"
@@ -10,9 +9,13 @@ import (
 
 func MarkdownToNode(data []byte) (*html.Node, error) {
 	md := blackfriday.Run(data)
-	log.Println(string(md))
 	node, err := html.Parse(strings.NewReader(string(md)))
 
+	return HTMLBody(node), err
+}
+
+func HtmlToNode(data []byte) (*html.Node, error) {
+	node, err := html.Parse(strings.NewReader(string(data)))
 	return HTMLBody(node), err
 }
 

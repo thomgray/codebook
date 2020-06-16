@@ -11,7 +11,7 @@ import (
 // var config *config.Config
 
 func main() {
-
+	os.Setenv("TCELL_TRUECOLOR", "disable")
 	devMode := os.Getenv("codebookdevmode")
 	if devMode == "true" {
 		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)

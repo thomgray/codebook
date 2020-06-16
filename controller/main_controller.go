@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"log"
 	"strings"
 
 	"github.com/thomgray/codebook/constants"
@@ -17,9 +16,11 @@ type MainController struct {
 	View           *view.MainView
 	InputView      *view.InputView
 	ModalMenu      *view.ModalMenu
+	CompletionView *view.CompletionView
 	Config         *config.Config
 	FileManager    *model.FileManager
 	activeDocument *model.Document
+	activeFile     *model.File
 }
 
 // Mode ...
@@ -40,11 +41,12 @@ func InitMainController(config *config.Config) *MainController {
 	app = egg.InitOrPanic()
 
 	mc := MainController{
-		View:        view.MakeMainView(app),
-		InputView:   view.MakeInputView(app),
-		ModalMenu:   view.MakeModalMenu(),
-		Config:      config,
-		FileManager: model.MakeFileManager(),
+		View:           view.MakeMainView(app),
+		InputView:      view.MakeInputView(app),
+		ModalMenu:      view.MakeModalMenu(),
+		CompletionView: view.MakeCompletionView(),
+		Config:         config,
+		FileManager:    model.MakeFileManager(config),
 	}
 
 	app.AddViewController(mc.ModalMenu)
@@ -61,7 +63,7 @@ func (mc *MainController) init() {
 }
 
 func (mc *MainController) reloadFiles() {
-	mc.FileManager.LoadFiles(mc.Config.NotePaths)
+	// mc.FileManager.LoadFiles(mc.Config.NotePaths)
 }
 
 func (mc *MainController) keyEventDelegate(e *egg.KeyEvent) {
@@ -84,17 +86,17 @@ func (mc *MainController) handleEventInputMode(e *egg.KeyEvent) {
 	if mc.InputView.GetCursorX() == 0 {
 		switch e.Char {
 		case '?':
-			e.StopPropagation = true
+			e.SetPropagate(false)
 			mc.setInputMode(constants.InputModeSearch)
 			app.ReDraw()
 			return
 		case '>':
-			e.StopPropagation = true
+			e.SetPropagate(false)
 			mc.setInputMode(constants.InputModeTraverse)
 			app.ReDraw()
 			return
 		case ':':
-			e.StopPropagation = true
+			e.SetPropagate(false)
 			mc.setInputMode(constants.InputModeCommand)
 			app.ReDraw()
 			return
@@ -105,10 +107,11 @@ func (mc *MainController) handleEventInputMode(e *egg.KeyEvent) {
 	case egg.KeyEnter:
 		mc.handleEnter(e)
 	case egg.KeyTab:
-		e.StopPropagation = true
+		e.SetPropagate(false)
 		mc.handleAutocomplete(mc.InputView.GetTextContentString())
 	case egg.KeyArrowUp, egg.KeyArrowDown:
-		e.StopPropagation = true
+		e.SetPropagate(false)
+		mc.CompletionView.SetVisible(false)
 		mc.View.HandleKeyEvent(e)
 		app.ReDraw()
 	}
@@ -142,13 +145,14 @@ func (mc *MainController) setInputMode(m constants.InputMode) {
 }
 
 func (mc *MainController) handleEnter(e *egg.KeyEvent) {
-	e.StopPropagation = true
+	e.SetPropagate(false)
+	mc.CompletionView.SetVisible(false)
 	txt := mc.InputView.GetTextContentString()
 	switch inputMode {
 	case constants.InputModeTraverse:
-		if !mc.handleSpecial(txt) {
-			mc.handleTraverse(txt)
-		}
+		// if !mc.handleSpecial(txt) {
+		mc.handleTraverse(txt)
+		// }
 	case constants.InputModeSearch:
 		mc.handleSearch(txt)
 	case constants.InputModeCommand:
@@ -166,97 +170,132 @@ func (mc *MainController) handleSearch(str string) {
 	}
 
 	if f != nil && f.Document != nil {
-		mc.SetActiveDocument(f.Document)
+		// mc.SetActiveDocument(f.Document)
 		mc.InputView.SetTextContentString("")
 		app.ReDraw()
 	}
 }
 
-func (mc *MainController) SetActiveDocument(d *model.Document) {
-	mc.activeDocument = d
-	mc.View.SetActiveDocument(d)
+// func (mc *MainController) SetActiveDocument(d *model.Document) {
+// 	mc.activeDocument = d
+// 	mc.View.SetActiveDocument(d)
+// 	mc.InputView.SetTextContentString("")
+// 	mc.InputView.SetCursorX(0)
+// }
+
+func (mc *MainController) SetActiveFile(f *model.File) {
+	mc.activeFile = f
+	mc.View.SetActiveFile(f)
 	mc.InputView.SetTextContentString("")
 	mc.InputView.SetCursorX(0)
 }
 
-func (mc *MainController) handleTraverse(strUntreated string) {
-	complete := func(doc *model.Document) {
-		mc.SetActiveDocument(doc)
-		app.ReDraw()
-	}
+// func (mc *MainController) handleTraverse(strUntreated string) {
+// 	complete := func(file *model.File) {
+// 		mc.SetActiveFile(file)
+// 		app.ReDraw()
+// 	}
 
-	strTrimmed := strings.TrimSpace(strings.ToLower(strUntreated))
-	str, mode := getQueryAndMode(strTrimmed)
-	log.Printf("Doing a traverse w/ mode %d and command %s", mode, str)
+// 	strTrimmed := strings.TrimSpace(strings.ToLower(strUntreated))
+// 	log.Println("traversing", strTrimmed)
+// 	// pathFragments := strings.Split(strTrimmed, "/")
 
-	var d *model.Document = nil
+// 	files := mc.FileManager.TraversePath(strTrimmed)
+// 	if len(files) == 1 {
+// 		file := files[0]
+// 		complete(file)
+// 		log.Println("Active file set")
+// 	}
+// }
 
-	if mc.activeDocument != nil {
-		doc := mc.activeDocument
-
-		if mode == TraversalModeDefault || mode == TraveralModeHere {
-			d = queryDocument(doc, str, false)
-			if d != nil {
-				complete(d)
-				return
-			}
-		} else if mode == TraveralModeRoot {
-			top := TopLevelDocument(doc)
-			d = queryDocument(top, str, false)
-			if d != nil {
-				complete(d)
-				return
-			}
+func matchesLocation(f *model.File, path string) bool {
+	for _, loc := range f.Locations {
+		if strings.EqualFold(loc.RelativePathWithName, path) {
+			// path matches fully
+			return true
 		}
 	}
-
-	if mode == TraversalModeDefault || mode == TraveralModeExt {
-		for _, file := range mc.FileManager.Files {
-			if file.Document != nil {
-				d = queryDocument(file.Document, str, true)
-				if d != nil {
-					complete(d)
-					return
-				}
-			}
-		}
-	}
+	return false
 }
 
-func (mc *MainController) handleSpecial(str string) bool {
-	overruled := false
-	cleaned := strings.TrimSpace(str)
-	if mc.activeDocument != nil {
-		switch cleaned {
-		case ".":
-			mc.SetActiveDocument(mc.activeDocument)
-			app.ReDraw()
-			overruled = true
-		case "*":
-			// unset active document
-			mc.SetActiveDocument(nil)
-			app.ReDraw()
-			overruled = true
-		case "..":
-			if mc.activeDocument != nil && mc.activeDocument.Super != nil {
-				mc.SetActiveDocument(mc.activeDocument.Super)
-				overruled = true
-				app.ReDraw()
-			}
-		case "/":
-			if mc.activeDocument != nil && mc.activeDocument.Super != nil {
-				super := mc.activeDocument.Super
-				for super.Super != nil {
-					super = super.Super
-				}
-				mc.SetActiveDocument(super)
-				overruled = true
-				app.ReDraw()
-			}
-		}
-	}
-	return overruled
-}
+// func (mc *MainController)handleTraverse(strUntreated string) {
+// 	complete := func(doc *model.Document) {
+// 		mc.SetActiveDocument(doc)
+// 		app.ReDraw()
+// 	}
+
+// 	strTrimmed := strings.TrimSpace(strings.ToLower(strUntreated))
+// 	str, mode := getQueryAndMode(strTrimmed)
+// 	log.Printf("Doing a traverse w/ mode %d and command %s", mode, str)
+
+// 	var d *model.Document = nil
+
+// 	if mc.activeDocument != nil {
+// 		doc := mc.activeDocument
+
+// 		if mode == TraversalModeDefault || mode == TraveralModeHere {
+// 			d = queryDocument(doc, str, false)
+// 			if d != nil {
+// 				complete(d)
+// 				return
+// 			}
+// 		} else if mode == TraveralModeRoot {
+// 			top := TopLevelDocument(doc)
+// 			d = queryDocument(top, str, false)
+// 			if d != nil {
+// 				complete(d)
+// 				return
+// 			}
+// 		}
+// 	}
+
+// 	if mode == TraversalModeDefault || mode == TraveralModeExt {
+// 		for _, file := range mc.FileManager.Files {
+// 			if file.Document != nil {
+// 				d = queryDocument(file.Document, str, true)
+// 				if d != nil {
+// 					complete(d)
+// 					return
+// 				}
+// 			}
+// 		}
+// 	}
+// }
+
+// func (mc *MainController) handleSpecial(str string) bool {
+// 	overruled := false
+// 	cleaned := strings.TrimSpace(str)
+// 	if mc.activeDocument != nil {
+// 		switch cleaned {
+// 		case ".":
+// 			mc.SetActiveDocument(mc.activeDocument)
+// 			app.ReDraw()
+// 			overruled = true
+// 		case "*":
+// 			// unset active document
+// 			mc.SetActiveDocument(nil)
+// 			app.ReDraw()
+// 			overruled = true
+// 		case "..":
+// 			if mc.activeDocument != nil && mc.activeDocument.Super != nil {
+// 				mc.SetActiveDocument(mc.activeDocument.Super)
+// 				overruled = true
+// 				app.ReDraw()
+// 			}
+// 		case "/":
+// 			if mc.activeDocument != nil && mc.activeDocument.Super != nil {
+// 				super := mc.activeDocument.Super
+// 				for super.Super != nil {
+// 					super = super.Super
+// 				}
+// 				mc.SetActiveDocument(super)
+// 				overruled = true
+// 				app.ReDraw()
+// 			}
+// 		}
+// 	}
+// 	return overruled
+// }
 
 func (mc *MainController) handleAutocomplete(str string) {
 	switch inputMode {
