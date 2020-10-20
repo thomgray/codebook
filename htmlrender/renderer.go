@@ -1,8 +1,11 @@
 package htmlrender
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
@@ -44,13 +47,15 @@ type Box struct {
 type RenderingContext struct {
 	Canvas egg.Canvas
 	Box
-	cursorX             int
-	cursorY             int
-	endsInWhitespace    bool
-	shouldStartNewBlock bool
-	didEndBlock         bool
-	preformatted        bool
-	strikethrough       bool
+	cursorX          int
+	cursorY          int
+	endsInWhitespace bool
+	didEndBlock      bool
+	preformatted     bool
+	strikethrough    bool
+	listTier         int
+	listItemIndex    int
+	listType         string
 }
 
 func (rc RenderingContext) applyPost(prc PostRenderingContext) RenderingContext {
@@ -58,8 +63,8 @@ func (rc RenderingContext) applyPost(prc PostRenderingContext) RenderingContext 
 	rc.cursorX = prc.cursorX
 	rc.cursorY = prc.cursorY
 	rc.endsInWhitespace = prc.endsInWhitespace
-	rc.shouldStartNewBlock = prc.shouldStartNewBlock
 	rc.didEndBlock = prc.didEndBlock
+	rc.listItemIndex = prc.listItemIndex
 	return rc
 }
 
@@ -76,36 +81,29 @@ func (rc RenderingContext) applyBlock(tag string) RenderingContext {
 		rc.cursorY += 2
 		rc.didEndBlock = true
 	}
-	// if rc.shouldStartNewBlock {
-	// 	// otherwise there is already a block, so don't double the blocks!
-	// 	// rc.Canvas.DrawString2(fmt.Sprintf("{%s}", tag), rc.cursorX, rc.cursorY)
-	// 	rc.cursorY += 2
-	// 	rc.shouldStartNewBlock = false
-	// }
-	// either way, a new block should reset the x cursor to the left margin
 	rc.cursorX = rc.leftMargin
 	return rc
 }
 
-type PostRenderingContext struct {
-	cursorX             int
-	cursorY             int
-	endsInWhitespace    bool
-	shouldStartNewBlock bool
-	didEndBlock         bool
+func (rc RenderingContext) copy() RenderingContext {
+	return rc
 }
 
-func (prc PostRenderingContext) applyBlock(rc RenderingContext, tag string) PostRenderingContext {
+type PostRenderingContext struct {
+	cursorX          int
+	cursorY          int
+	endsInWhitespace bool
+	didEndBlock      bool
+	listItemIndex    int
+}
+
+func (prc PostRenderingContext) applyBlock(rc RenderingContext) PostRenderingContext {
 	if !prc.didEndBlock {
 		prc.cursorY += 2
-		// no need to apply a new block
 	}
 	prc.didEndBlock = true
-	// if prc.shouldStartNewBlock {
-	// 	prc.cursorY += 2
-	// }
+
 	prc.cursorX = rc.leftMargin
-	prc.shouldStartNewBlock = false
 	return prc
 }
 
@@ -113,8 +111,8 @@ func (prc PostRenderingContext) noOp(rc RenderingContext) PostRenderingContext {
 	prc.cursorX = rc.cursorX
 	prc.cursorY = rc.cursorY
 	prc.endsInWhitespace = rc.endsInWhitespace
-	prc.shouldStartNewBlock = rc.shouldStartNewBlock
 	prc.didEndBlock = rc.didEndBlock
+	prc.listItemIndex = rc.listItemIndex
 	return prc
 }
 
@@ -152,13 +150,15 @@ func renderElement(n *html.Node, rc RenderingContext) PostRenderingContext {
 	if elementIsBlock(tagName) {
 		c = c.applyBlock(tagName)
 	} else if !elementIsInline(tagName) && !elementIsOtherVisisble(tagName) {
-		// not a visible tag type, so skip!
+		// not a visible tag type, so skip
 		return PostRenderingContext{}.noOp(rc)
 	}
 
 	switch tagName {
 	case "h1", "h2", "h3", "h4", "h5", "h6":
 		return renderHeading(n, c)
+	case "hr":
+		return renderHr(n, c)
 	// check the tag for some simple rendering rules
 	case "code":
 		c.Canvas.Foreground = egg.ColorWhite
@@ -169,7 +169,9 @@ func renderElement(n *html.Node, rc RenderingContext) PostRenderingContext {
 		c.Canvas.Attribute |= egg.AttrUnderline
 	case "strong":
 		c.Canvas.Attribute |= egg.AttrBold
-	case "ul", "ol", "dl":
+	case "ul", "ol":
+		return renderList(n, c)
+	case "dl":
 		c = c.setLeftMargin(c.leftMargin + 2)
 	case "dt":
 		c.Canvas.Attribute |= egg.AttrBold
@@ -177,11 +179,20 @@ func renderElement(n *html.Node, rc RenderingContext) PostRenderingContext {
 	case "dd":
 		c = c.setLeftMargin(c.leftMargin + 2)
 	case "li":
-		// this should be for either type of list!
-		c.Canvas.DrawString("• ", c.leftMargin, c.cursorY, egg.ColorMagenta, c.Canvas.Background, c.Canvas.Attribute)
-		c = c.setLeftMargin(c.leftMargin + 2)
+		var liStr string
+		switch c.listType {
+		case "ol":
+			liStr = strconv.Itoa(c.listItemIndex+1) + "."
+		default:
+			liStr = " •"
+		}
+		c.Canvas.DrawString(liStr, c.leftMargin, c.cursorY, egg.ColorMagenta, c.Canvas.Background, c.Canvas.Attribute)
+		c = c.setLeftMargin(c.leftMargin + 3)
+		c.listItemIndex++
 	case "del":
 		c.strikethrough = true
+	case "a":
+		return renderAnchor(n, c)
 	}
 
 	return renderChildren(n, c, rc)
@@ -237,6 +248,95 @@ func renderHeading(n *html.Node, rc RenderingContext) PostRenderingContext {
 	return prc
 }
 
+func renderHr(n *html.Node, rc RenderingContext) PostRenderingContext {
+	prc := PostRenderingContext{}.noOp(rc)
+	line := strings.Repeat("─", rc.Canvas.Width)
+	rc.Canvas.DrawString(line, 0, rc.cursorY, egg.ColorMagenta, rc.Canvas.Background, rc.Canvas.Attribute)
+	prc.didEndBlock = false
+	prc = prc.applyBlock(rc)
+
+	return prc
+}
+
+func renderList(n *html.Node, rc RenderingContext) PostRenderingContext {
+	listStart := 0
+
+	if attr, err := getAttribute(n, "start"); err == nil {
+		if val, err2 := strconv.Atoi(attr); err2 == nil {
+			listStart = val
+		}
+	}
+
+	c := rc.copy()
+	c.listTier++
+	c.listItemIndex = listStart
+	c.listType = n.Data
+	c = c.setLeftMargin(c.leftMargin + 2)
+
+	prc := renderChildren(n, c, rc)
+	// ensure that li index is whatever is was before this list was rendered
+	// so that nested lists don't mess up indexing
+	prc.listItemIndex = rc.listItemIndex
+	return prc
+}
+
+func renderAnchor(n *html.Node, c RenderingContext) PostRenderingContext {
+	if href, err := getAttribute(n, "href"); err == nil {
+		nodeText, nodeTextErr := nodeText(n)
+		log.Printf("href= %s", nodeText)
+		if nodeTextErr == nil && nodeText == href {
+			// href==text so it is a simple one
+			c.Canvas.Foreground = egg.ColorBlue
+			return renderChildren(n, c, c)
+		}
+
+		thisC := c.copy()
+
+		prc := renderChildren(n, c, thisC)
+		prc.cursorX++
+		maxW := thisC.rightMargin - thisC.leftMargin
+		remainingW := thisC.rightMargin - prc.cursorX
+		// now we should draw the href, making sure to wrap lines if needed
+		hrefWithBracket := fmt.Sprintf("(%s)", href)
+
+		if remainingW < 1 {
+			prc.cursorX = thisC.leftMargin
+			prc.cursorY++
+		}
+		// draw the @...
+		c.Canvas.DrawString("@", prc.cursorX, prc.cursorY, egg.ColorMagenta, c.Canvas.Background, c.Canvas.Attribute)
+		prc.cursorX++
+
+		toDraw := hrefWithBracket
+		keepDrawing := true
+
+		openingBracketX := prc.cursorX
+		openingBracketY := prc.cursorY
+		for keepDrawing {
+			slice, remainder, done := sliceForLine(toDraw, thisC.rightMargin-prc.cursorX, maxW)
+			log.Println("just keep drawing", slice)
+			toDraw = remainder
+
+			thisC.Canvas.DrawString(slice, prc.cursorX, prc.cursorY, egg.ColorBlue, c.Canvas.Background, c.Canvas.Attribute)
+			if done {
+				prc.cursorX += runewidth.StringWidth(slice)
+			} else {
+				prc.cursorX = thisC.leftMargin
+				prc.cursorY++
+			}
+			keepDrawing = !done
+		}
+
+		// just need to tweak the bracket colour by re-drawing them...
+		thisC.Canvas.DrawRune('(', openingBracketX, openingBracketY, egg.ColorMagenta, thisC.Canvas.Background, thisC.copy().Canvas.Attribute)
+		thisC.Canvas.DrawRune(')', prc.cursorX-1, prc.cursorY, egg.ColorMagenta, thisC.Canvas.Background, thisC.copy().Canvas.Attribute)
+		return prc
+	}
+
+	// anchor without an href? so render the content as normal then
+	return renderChildren(n, c, c)
+}
+
 func renderText(n *html.Node, c RenderingContext) PostRenderingContext {
 	if c.preformatted {
 		return renerTextPreformatted(n, c)
@@ -285,7 +385,6 @@ func renderText(n *html.Node, c RenderingContext) PostRenderingContext {
 	}
 
 	prc.endsInWhitespace = endsWithWs
-	prc.shouldStartNewBlock = true
 	prc.didEndBlock = false
 	prc.cursorX = c.cursorX
 	prc.cursorY = c.cursorY
@@ -344,7 +443,7 @@ func renderChildren(n *html.Node, c RenderingContext, thisC RenderingContext) Po
 		c = c.applyPost(prc)
 	}
 	if elementIsBlock(n.Data) {
-		prc = prc.applyBlock(thisC, n.Data)
+		prc = prc.applyBlock(thisC)
 	}
 	return prc
 }
@@ -374,4 +473,28 @@ func elementIsOtherVisisble(tagName string) bool {
 		}
 	}
 	return false
+}
+
+func getAttribute(node *html.Node, key string) (string, error) {
+	for _, attr := range node.Attr {
+		if attr.Key == key {
+			return attr.Val, nil
+		}
+	}
+	return "", errors.New("attribute not found")
+}
+
+func nodeText(node *html.Node) (string, error) {
+	if node.FirstChild == node.LastChild &&
+		node.FirstChild != nil &&
+		node.FirstChild.Type == html.TextNode {
+		return node.FirstChild.Data, nil
+	}
+	return "", errors.New("node contains non-text elements")
+}
+
+func renderStringAttributed(str attString, rc RenderingContext) PostRenderingContext {
+	prc := PostRenderingContext{}.noOp(rc)
+
+	return prc
 }
