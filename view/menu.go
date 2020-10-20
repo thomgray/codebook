@@ -22,7 +22,7 @@ func MakeModalMenu() *ModalMenu {
 
 	mm.SetBounds(egg.MakeBounds(3, 3, w-6, 10))
 	mm.label.SetBounds(egg.MakeBounds(1, 1, w-8, 8))
-	mm.label.OnDraw(func(c egg.Canvas) {
+	mm.label.OnDraw(func(c egg.Canvas, _ egg.State) {
 		c.DrawString2("Quit", 1, 0)
 		c.DrawString("q", 7, 0, c.Foreground, c.Background, c.Attribute|egg.AttrUnderline)
 		c.DrawString2("Search Paths", 1, 1)

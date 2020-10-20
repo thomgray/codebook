@@ -23,7 +23,7 @@ func MakeInputView(app *egg.Application) *InputView {
 
 	label.SetBounds(egg.MakeBounds(0, 0, 1, 1))
 	app.AddView(label)
-	label.OnDraw(func(c egg.Canvas) {
+	label.OnDraw(func(c egg.Canvas, _ egg.State) {
 		var char string
 		switch iv.mode {
 		case constants.InputModeTraverse:
