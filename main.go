@@ -6,12 +6,13 @@ import (
 
 	"github.com/thomgray/codebook/config"
 	"github.com/thomgray/codebook/controller"
+	"github.com/thomgray/egg"
 )
 
 // var config *config.Config
 
 func main() {
-	os.Setenv("TCELL_TRUECOLOR", "disable")
+	egg.UseTrueColor(false)
 	devMode := os.Getenv("codebookdevmode")
 	if devMode == "true" {
 		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)

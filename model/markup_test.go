@@ -20,14 +20,17 @@ func TestParse(t *testing.T) {
 func TestZip(t *testing.T) {
 	node, _ := html.Parse(strings.NewReader("<body><h1>Hello</h1><p>content</p><h2>heading 2</h2><p>h2 content</p></body>"))
 
-	body := node.FirstChild.NextSibling
+	body := node.FirstChild
 
 	var traverse func(*html.Node)
 
+	fmt.Println(body.Data)
+
 	traverse = func(n *html.Node) {
-		fmt.Printf("Node %s\n", n.Data)
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			traverse(c)
+		if n != nil {
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				traverse(c)
+			}
 		}
 	}
 

@@ -52,7 +52,7 @@ func (cv *CompletionView) Resize() {
 	cv.SetBounds(newBounds)
 }
 
-func (cv *CompletionView) draw(c egg.Canvas) {
+func (cv *CompletionView) draw(c egg.Canvas, _ egg.State) {
 	h := cv.MaxHeight()
 	drawElipse := false
 	if cv.completions != nil {

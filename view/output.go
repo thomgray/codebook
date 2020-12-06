@@ -30,7 +30,7 @@ func (ov *OutputView) UnbindDraw() {
 	ov.View.OnDraw(ov.draw)
 }
 
-func (ov *OutputView) CustomDraw(f func(egg.Canvas)) {
+func (ov *OutputView) CustomDraw(f func(egg.Canvas, egg.State)) {
 	ov.View.OnDraw(f)
 }
 
@@ -47,15 +47,15 @@ func (ov *OutputView) SetFile(f *model.File) {
 	ov.UnbindDraw()
 }
 
-func (ov *OutputView) draw(c egg.Canvas) {
+func (ov *OutputView) draw(c egg.Canvas, s egg.State) {
 	if ov.customDraw != nil {
 		ov.customDraw(c)
 	} else if ov.file != nil {
-		ov.drawFile(c)
+		ov.drawFile(c, s)
 	}
 }
 
-func (ov *OutputView) drawFile(c egg.Canvas) {
+func (ov *OutputView) drawFile(c egg.Canvas, _ egg.State) {
 	f := ov.file
 	if f == nil {
 		log.Println("File is null, nothing to render")

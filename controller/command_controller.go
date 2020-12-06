@@ -35,7 +35,7 @@ var commands = []*command{
 		action: func(mc *MainController, args []string) bool {
 			sp := mc.Config.SearchPaths
 
-			mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+			mc.View.OutputView.CustomDraw(func(c egg.Canvas, _ egg.State) {
 				for i, spath := range sp {
 					c.DrawString2(spath, 0, i)
 				}
@@ -50,7 +50,7 @@ var commands = []*command{
 		action: func(mc *MainController, args []string) bool {
 			allFilesPaths := mc.FileManager.FindSupportedFilePaths()
 
-			mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+			mc.View.OutputView.CustomDraw(func(c egg.Canvas, _ egg.State) {
 				for i, f := range allFilesPaths {
 					c.DrawString2(f.QueryPath(), 0, i)
 				}
@@ -134,7 +134,7 @@ var commands = []*command{
 				str = *root
 			}
 
-			mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+			mc.View.OutputView.CustomDraw(func(c egg.Canvas, _ egg.State) {
 				c.DrawString2(str, 0, 0)
 			})
 
@@ -223,7 +223,7 @@ func initHelp() {
 func bootstrapCommands() {
 	// needs to be done this way for circularity reasons :(
 	commands[0].action = func(mc *MainController, args []string) bool {
-		mc.View.OutputView.CustomDraw(func(c egg.Canvas) {
+		mc.View.OutputView.CustomDraw(func(c egg.Canvas, _ egg.State) {
 			y := 0
 			for _, cmd := range commands {
 				aliases := strings.Join(cmd.aliases, " | ")
